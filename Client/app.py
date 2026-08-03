@@ -2,7 +2,8 @@ import requests
 import subprocess
 import json
 import os
-import 
+import customtkinter as ctk
+import threading
 APPDATA = os.environ["appdata"]
 FILELOCATION = os.path.dirname(__file__)
 RESOURCES = os.path.join(FILELOCATION, "resources")
@@ -37,8 +38,11 @@ class Client:
 
 
 
-class App:
-    def __init__(self):
+class App(ctk.CTk):
+    def __init__(self, screenX, screenY):
+        super().__init__()
+        self.title("Gyros Client")
+        self.geometry(f"{screenX}x{screenY}")
         self.version = "26.1.2"
         self.versionType = "fabric"
         self.java = {
@@ -46,7 +50,14 @@ class App:
             21 : "C://Program Files//Java//jdk-21//bin//java.exe",
             25 : "C://Program Files//Java//jdk-25//bin//java.exe"
         }
-    def startClient(username, version, versionType, java, profilePath, versionPath, libraries, assetsPath):
-        client = Client(username, version, versionType, java, profilePath, versionPath, libraries, assetsPath)
-app = App()
-App.startClient("Gyroslord5", app.version, app.versionType, app.java, os.path.join(FILELOCATION, "profiles", "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets"))
+        self.nameText = ctk.CTkLabel(self, text="Gyros Client", font=("Bold", 40))
+        self.nameText.place(x=475, y=50)
+        self.playButtton = ctk.CTkButton(self, width=250, height=125, text=f"Play {self.version} - {self.versionType[0].upper()}{self.versionType[1:]}", font=("Bold", 40), command=lambda: self.startClient("Gyroslord5", self.version, self.versionType, self.java, os.path.join(FILELOCATION, "profiles", "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
+        self.playButtton.place(x=410, y=450)
+    def startClient(self, username, version, versionType, java, profilePath, versionPath, libraries, assetsPath):
+        thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.versionType, self.java, os.path.join(FILELOCATION, "profiles", "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
+        thread.start()
+    def runClient(self, username, version, versionType, java, profilePath, versionPath, libraries, assetsPath):
+        Client(username, version, versionType, java, profilePath, versionPath, libraries, assetsPath)
+app = App(1200, 700)
+app.mainloop()
