@@ -38,10 +38,12 @@ class Client:
 
 class App:
     def __init__(self):
-        self.version = "1.20.1"
+        self.version = "26.1.2"
         self.versionType = "fabric"
         self.java = {
-            17 : "C://Program Files//Java//jdk-17//bin//java.exe"
+            17 : "C://Program Files//Java//jdk-17//bin//java.exe",
+            21 : "C://Program Files//Java//jdk-21//bin//java.exe",
+            25 : "C://Program Files//Java//jdk-25//bin//java.exe"
         }
     def startClient(username, version, versionType, java, profilePath, versionPath, libraries, assetsPath):
         client = Client(username, version, versionType, java, profilePath, versionPath, libraries, assetsPath)
