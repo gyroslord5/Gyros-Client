@@ -1,11 +1,36 @@
 {
   "stats": {
     "minecraft:custom": {
-      "minecraft:time_since_rest": 9,
-      "minecraft:total_world_time": 9,
-      "minecraft:leave_game": 1,
-      "minecraft:play_time": 9,
-      "minecraft:time_since_death": 9
+      "minecraft:time_since_rest": 1298,
+      "minecraft:walk_one_cm": 17900,
+      "minecraft:leave_game": 19,
+      "minecraft:damage_taken": 240,
+      "minecraft:play_time": 6166,
+      "minecraft:jump": 173,
+      "minecraft:time_since_death": 1263,
+      "minecraft:drop": 39,
+      "minecraft:sprint_one_cm": 10098,
+      "minecraft:fall_one_cm": 8050,
+      "minecraft:total_world_time": 6389,
+      "minecraft:fly_one_cm": 20139,
+      "minecraft:crouch_one_cm": 558,
+      "minecraft:sneak_time": 127,
+      "minecraft:deaths": 1
+    },
+    "minecraft:mined": {
+      "minecraft:short_grass": 1,
+      "minecraft:tall_grass": 1
+    },
+    "minecraft:dropped": {
+      "minecraft:diamond_block": 2432,
+      "minecraft:wheat_seeds": 1
+    },
+    "minecraft:picked_up": {
+      "minecraft:wheat_seeds": 2,
+      "minecraft:diamond_block": 2432
+    },
+    "minecraft:used": {
+      "minecraft:diamond_block": 487
     }
   },
   "DataVersion": 4790

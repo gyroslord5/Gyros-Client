@@ -1,0 +1,5 @@
+/diamondblocks 64
+/diamondblocks 256
+/diamondblocks 64tt
+/diamondblocks 64ttt
+/diamondblocks 64

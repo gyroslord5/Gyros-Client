@@ -59,7 +59,7 @@ sprintWindow:7
 darkMojangStudiosBackground:false
 hideLightningFlashes:false
 hideSplashTexts:false
-mouseSensitivity:0.5
+mouseSensitivity:0.2535211267605634
 damageTiltStrength:1.0
 highContrast:false
 highContrastBlockOutline:false
@@ -169,10 +169,6 @@ key_key.debug.networkCharts:key.keyboard.3
 key_key.debug.lightmapTexture:key.keyboard.4
 key_key.entityculling.toggle:key.keyboard.unknown
 key_key.entityculling.toggleBoxes:key.keyboard.unknown
-key_iris.keybind.reload:key.keyboard.r
-key_iris.keybind.toggleShaders:key.keyboard.k
-key_iris.keybind.shaderPackSelection:key.keyboard.o
-key_iris.keybind.wireframe:key.keyboard.unknown
 soundCategory_master:1.0
 soundCategory_music:0.0
 soundCategory_record:1.0

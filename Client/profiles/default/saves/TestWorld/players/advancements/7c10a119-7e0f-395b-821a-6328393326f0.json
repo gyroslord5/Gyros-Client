@@ -5,5 +5,23 @@
     },
     "done": true
   },
+  "minecraft:adventure/adventuring_time": {
+    "criteria": {
+      "minecraft:plains": "2026-08-03 21:52:23 +0200"
+    },
+    "done": false
+  },
+  "minecraft:recipes/misc/diamond": {
+    "criteria": {
+      "has_diamond_block": "2026-08-03 21:52:29 +0200"
+    },
+    "done": true
+  },
+  "minecraft:recipes/decorations/chest": {
+    "criteria": {
+      "has_lots_of_items": "2026-08-03 22:01:31 +0200"
+    },
+    "done": true
+  },
   "DataVersion": 4790
 }
