@@ -3,3 +3,4 @@
 /diamondblocks 64tt
 /diamondblocks 64ttt
 /diamondblocks 64
+/diamondblocks 641452524
