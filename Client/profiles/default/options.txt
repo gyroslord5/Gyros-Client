@@ -66,7 +66,7 @@ highContrastBlockOutline:false
 narratorHotkey:true
 resourcePacks:[]
 incompatibleResourcePacks:[]
-lastServer:
+lastServer:hugosmp.net
 lang:en_us
 chatVisibility:0
 chatOpacity:1.0
@@ -167,8 +167,6 @@ key_key.debug.profilingChart:key.keyboard.1
 key_key.debug.fpsCharts:key.keyboard.2
 key_key.debug.networkCharts:key.keyboard.3
 key_key.debug.lightmapTexture:key.keyboard.4
-key_key.entityculling.toggle:key.keyboard.unknown
-key_key.entityculling.toggleBoxes:key.keyboard.unknown
 soundCategory_master:1.0
 soundCategory_music:0.0
 soundCategory_record:1.0
