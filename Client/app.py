@@ -5,8 +5,10 @@ import os
 import customtkinter as ctk
 import threading
 APPDATA = os.environ["appdata"]
-FILELOCATION = os.path.dirname(__file__)
-RESOURCES = os.path.join(FILELOCATION, "resources")
+GYROSCLIENT = os.path.join(APPDATA, "GyrosClient")
+RESOURCES = os.path.join(GYROSCLIENT, "resources")
+PROFILES = os.path.join(GYROSCLIENT, "profiles")
+BASE_FABRIC_URL = "https://maven.fabricmc.net/"
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 class Client:
     def __init__(self, username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
@@ -75,6 +77,7 @@ class App(ctk.CTk):
 
     def downloadThread(self, url, absolutePathWithFileName):
         request = requests.get(url)
+        os.makedirs(os.path.dirname(absolutePathWithFileName), exist_ok=True)
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
 
@@ -124,12 +127,20 @@ class App(ctk.CTk):
                 break
         downloadPath = os.path.join(RESOURCES, "versions", self.version)
         os.mkdir(downloadPath)
+        for lib in version_dic["libraries"]:
+            folders = lib["downloads"]["artifact"]["path"].split(sep="/")
+            path = ""
+            for folder in folders:
+                path = os.path.join(path, folder)
+            if not os.path.exists(os.path.join(RESOURCES, "libraries", path)):
+                self.url_to_file(lib["downloads"]["artifact"]["url"], os.path.abspath(os.path.join(RESOURCES, "libraries", lib["downloads"]["artifact"]["path"])))
         self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
         self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
         self.wait_until_download_thread_done(continueFunc)
     def fabricDownload(self, continueFunc):
         url = f"https://meta.fabricmc.net/v2/versions/loader/{self.version}"
         fabricVersionJson = self.url_to_dic(url)[0]
+        self.url_to_file(self.maven_to_url(BASE_FABRIC_URL, fabricVersionJson["loader"]["maven"]), self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), fabricVersionJson["loader"]["maven"]))
         for lib in fabricVersionJson["launcherMeta"]["libraries"]["common"]:
             path = self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
             if not os.path.exists(path):
@@ -141,7 +152,7 @@ class App(ctk.CTk):
                 json.dump(fabricVersionJson, f, indent=4)
         continueFunc()
 
-    def maven_to_url(baseURL, maven):
+    def maven_to_url(self, baseURL, maven):
         group, artifact, version = maven.split(sep=":")
         return f"{baseURL.rstrip("/")}/{group.replace(".", "/")}/{artifact}/{version}/{artifact}-{version}.jar"
     
@@ -150,7 +161,11 @@ class App(ctk.CTk):
         return os.path.join(basePath, group.replace(".", os.sep), artifact, version, f"{artifact}-{version}.jar")
 
     def startClient(self):
-        thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, os.path.join(FILELOCATION, "profiles", "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
+        if not os.path.exists(os.path.join(RESOURCES, "libraries")):
+            os.mkdir(os.path.join(RESOURCES, "libraries"))
+        if not os.path.exists(os.path.join(PROFILES, "default")):
+            exit()
+        thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, os.path.join(PROFILES, "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
         if not os.path.exists(os.path.join(RESOURCES, "versions", self.version)):
             if self.modLoader == "fabric":
                 continueFunction = lambda: self.fabricDownload(thread.start)
