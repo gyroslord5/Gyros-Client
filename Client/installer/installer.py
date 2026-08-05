@@ -26,8 +26,6 @@ with zipfile.ZipFile(FILESZIP, "r") as zip:
 move_file(os.path.join(TEMP_INSTALLATION, "shortcut.lnk"), os.path.join(PROGRAMS, "Gyros Client.lnk"))
 with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "app.zip"), "r") as zip:
     zip.extractall(INSTALLATION)
-with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "resources.zip"), "r") as zip:
-    zip.extractall(APPDATA_INSTALLATION)
 with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "profiles.zip"), "r") as zip:
     zip.extractall(APPDATA_INSTALLATION)
 os.mkdir(JAVA)

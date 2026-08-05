@@ -9,6 +9,7 @@ GYROSCLIENT = os.path.join(APPDATA, "GyrosClient")
 RESOURCES = os.path.join(GYROSCLIENT, "resources")
 PROFILES = os.path.join(GYROSCLIENT, "profiles")
 BASE_FABRIC_URL = "https://maven.fabricmc.net/"
+MINECRAFT_BASE_ASSET_URL = "https://resources.download.minecraft.net/"
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
 class Client:
     def __init__(self, username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
@@ -65,9 +66,9 @@ class App(ctk.CTk):
                     if version["type"] == "release":
                         self.versions.append(version["id"])
         self.java = {
-            17 : "C://Program Files//Java//jdk-17//bin//java.exe",
-            21 : "C://Program Files//Java//jdk-21//bin//java.exe",
-            25 : "C://Program Files//Java//jdk-25//bin//java.exe"
+            17 : os.path.join(GYROSCLIENT, "Java", "jdk-17"),
+            21 : os.path.join(GYROSCLIENT, "Java", "jdk-21"),
+            25 : os.path.join(GYROSCLIENT, "Java", "jdk-21")
         }
         self.drawUI()
 
@@ -77,6 +78,7 @@ class App(ctk.CTk):
 
     def downloadThread(self, url, absolutePathWithFileName):
         request = requests.get(url)
+        self.installingText.configure(text=f"Installing: {os.path.basename(absolutePathWithFileName)}")
         os.makedirs(os.path.dirname(absolutePathWithFileName), exist_ok=True)
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
@@ -91,6 +93,8 @@ class App(ctk.CTk):
         self.download_thread = threading.Thread(target=lambda: self.downloadThread(url, absolutePathWithFileName))
         if not self.download_thread.is_alive():
             self.download_thread.start()
+        else:
+            self.wait_until_download_thread_done(lambda: self.url_to_file(url, absolutePathWithFileName))
 
     def dic_to_json(self, dic, absolutePathWithFileName):
         with open(absolutePathWithFileName, "w") as f:
@@ -115,10 +119,13 @@ class App(ctk.CTk):
         self.versionDropdown = ctk.CTkComboBox(self, values=self.versions, width=250, height=60, font=("Bold", 40), command=self.versionsDropdown_callback)
         self.versionDropdown.set("26.1.2")
         self.versionDropdown.place(x=470, y=250)
+        self.installingText = ctk.CTkLabel(self, text="")
+        self.installingText.place(x=200, y=200)
         self.uiElements.append(self.nameText)
         self.uiElements.append(self.playButtton)
         self.uiElements.append(self.modLoaderDropdown)
         self.uiElements.append(self.versionDropdown)
+        self.uiElements.append(self.installingText)
 
     def vanillaDownload(self, continueFunc):
         for version in self.versionManifest["versions"]:
@@ -134,6 +141,13 @@ class App(ctk.CTk):
                 path = os.path.join(path, folder)
             if not os.path.exists(os.path.join(RESOURCES, "libraries", path)):
                 self.url_to_file(lib["downloads"]["artifact"]["url"], os.path.abspath(os.path.join(RESOURCES, "libraries", lib["downloads"]["artifact"]["path"])))
+        assets_dic = self.url_to_dic(version_dic["assetIndex"]["url"])
+        for assetKey in assets_dic["objects"]:
+            asset = assets_dic["objects"][assetKey]
+            hash = asset["hash"]
+            assetPath = os.path.join(RESOURCES, "assets", "objects", hash[:2])
+            os.makedirs(assetPath, exist_ok=True)
+            
         self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
         self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
         self.wait_until_download_thread_done(continueFunc)
@@ -161,7 +175,10 @@ class App(ctk.CTk):
         return os.path.join(basePath, group.replace(".", os.sep), artifact, version, f"{artifact}-{version}.jar")
 
     def startClient(self):
-        if not os.path.exists(os.path.join(RESOURCES, "libraries")):
+        if not os.path.exists(RESOURCES):
+            os.mkdir(RESOURCES)
+            os.mkdir(os.path.join(RESOURCES, "assets"))
+            os.mkdir(os.path.join(RESOURCES, "versions"))
             os.mkdir(os.path.join(RESOURCES, "libraries"))
         if not os.path.exists(os.path.join(PROFILES, "default")):
             exit()
