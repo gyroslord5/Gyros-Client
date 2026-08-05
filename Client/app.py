@@ -117,11 +117,12 @@ class App(ctk.CTk):
         for version in self.versionManifest["versions"]:
             if version["id"] == self.version:
                 version_dic = self.url_to_dic(version["url"])
-            downloadPath = os.path.join(RESOURCES, "versions", self.version)
-            os.mkdir(downloadPath)
-            self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
-            self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
-            self.wait_until_download_thread_done(continueFunc)
+                break
+        downloadPath = os.path.join(RESOURCES, "versions", self.version)
+        os.mkdir(downloadPath)
+        self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
+        self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
+        self.wait_until_download_thread_done(continueFunc)
     def fabricDownload(self, continueFunc):
         url = f"https://meta.fabricmc.net/v2/versions/loader/{self.version}"
         fabricVersionJson = self.url_to_dic(url)[0]
@@ -134,19 +135,23 @@ class App(ctk.CTk):
             os.mkdir(fabricVersionsPath)
             with open(os.path.join(fabricVersionsPath, f"fabric-{self.version}.json"), "w") as f:
                 json.dump(fabricVersionJson, f, indent=4)
+        continueFunc()
 
     def maven_to_url(baseURL, maven):
         group, artifact, version = maven.split(sep=":")
         return f"{baseURL.rstrip("/")}/{group.replace(".", "/")}/{artifact}/{version}/{artifact}-{version}.jar"
     
-    def maven_to_file_path(basePath, maven):
+    def maven_to_file_path(self, basePath, maven):
         group, artifact, version = maven.split(sep=":")
         return os.path.join(basePath, group.replace(".", os.sep), artifact, version, f"{artifact}-{version}.jar")
 
     def startClient(self):
         thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, os.path.join(FILELOCATION, "profiles", "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
         if not os.path.exists(os.path.join(RESOURCES, "versions", self.version)):
-            continueFunction = lambda: self.fabricDownload(thread.start) if self.modLoader == "fabric" else thread.start
+            if self.modLoader == "fabric":
+                continueFunction = lambda: self.fabricDownload(thread.start)
+            else:
+                continueFunction = thread.start
             self.vanillaDownload(continueFunction)
         else:
             thread.start()
