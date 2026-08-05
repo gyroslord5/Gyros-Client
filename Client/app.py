@@ -28,13 +28,17 @@ class Client:
         if self.modLoader == "fabric":
             with open(os.path.join(self.versionPath, f"{self.modLoader}-{self.version}", f"{self.modLoader}-{self.version}.json"), "r") as f:
                 self.fabricjson = json.load(f)
-            for lib in self.fabricjson["libraries"]:
-                group, artifact, artifactVersion = lib["name"].split(sep=":")
-                self.classpath += f"{os.path.join(self.libraries, group.replace(".", os.sep), artifact, artifactVersion, f"{artifact}-{artifactVersion}.jar")};"
+            self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), self.fabricjson["loader"]["maven"])
+            for lib in self.fabricjson["launcherMeta"]["libraries"]["common"]:
+                self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
         self.classpath = self.classpath[0:-1]
-        if self.modLoader == "fabric":startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.fabricjson["mainClass"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", "0", "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"]] 
+        if self.modLoader == "fabric":startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.fabricjson["launcherMeta"]["mainClass"]["client"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", "0", "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"]] 
         else: startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.vanillajson["mainClass"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", "0", "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"]]
         self.start(startCommand)
+
+    def maven_to_file_path(self, basePath, maven):
+        group, artifact, artifactVersion = maven.split(sep=":")
+        return f"{os.path.join(basePath, group.replace(".", os.sep), artifact, artifactVersion, f"{artifact}-{artifactVersion}.jar")};"
 
     def start(self, command):
         subprocess.run(command)
