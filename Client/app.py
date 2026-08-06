@@ -4,6 +4,8 @@ import json
 import os
 import customtkinter as ctk
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
 APPDATA = os.environ["appdata"]
 GYROSCLIENT = os.path.join(APPDATA, "GyrosClient")
 RESOURCES = os.path.join(GYROSCLIENT, "resources")
@@ -41,7 +43,7 @@ class Client:
 
     def maven_to_file_path(self, basePath, maven):
         group, artifact, artifactVersion = maven.split(sep=":")
-        return f"{os.path.join(basePath, group.replace(".", os.sep), artifact, artifactVersion, f"{artifact}-{artifactVersion}.jar")};"
+        return f"{os.path.join(basePath, group.replace(".", "\\"), artifact, artifactVersion, f"{artifact}-{artifactVersion}.jar")};"
 
     def start(self, command):
         subprocess.run(command)
@@ -58,17 +60,18 @@ class App(ctk.CTk):
         self.version = "26.1.2"
         self.modLoaders = ["fabric", "vanilla"]
         self.modLoader = self.modLoaders[0]
-        self.download_thread = None
         self.uiElements = []
         self.versionManifest = self.url_to_dic(VERSION_MANIFEST_URL)
         self.versions = []
+        self.pool = ThreadPoolExecutor(max_workers=8)
+        self.futures = []
         for version in self.versionManifest["versions"]:
                     if version["type"] == "release":
                         self.versions.append(version["id"])
         self.java = {
-            17 : os.path.join(GYROSCLIENT, "Java", "jdk-17"),
-            21 : os.path.join(GYROSCLIENT, "Java", "jdk-21"),
-            25 : os.path.join(GYROSCLIENT, "Java", "jdk-21")
+            17 : os.path.join(GYROSCLIENT, "Java", "jdk-17", "bin", "java.exe"),
+            21 : os.path.join(GYROSCLIENT, "Java", "jdk-21", "bin", "java.exe"),
+            25 : os.path.join(GYROSCLIENT, "Java", "jdk-25", "bin", "java.exe")
         }
         self.drawUI()
 
@@ -78,23 +81,16 @@ class App(ctk.CTk):
 
     def downloadThread(self, url, absolutePathWithFileName):
         request = requests.get(url)
-        self.installingText.configure(text=f"Installing: {os.path.basename(absolutePathWithFileName)}")
+        filename = os.path.basename(absolutePathWithFileName)
+        self.installingText.configure(text=f"Installing: {filename}")
         os.makedirs(os.path.dirname(absolutePathWithFileName), exist_ok=True)
+
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
-
-    def wait_until_download_thread_done(self, callback):
-        if self.download_thread.is_alive():
-            self.after(50, lambda: self.wait_until_download_thread_done(callback))
-        else:
-            callback()
+        self.installingText.configure(text="")
 
     def url_to_file(self, url, absolutePathWithFileName):
-        self.download_thread = threading.Thread(target=lambda: self.downloadThread(url, absolutePathWithFileName))
-        if not self.download_thread.is_alive():
-            self.download_thread.start()
-        else:
-            self.wait_until_download_thread_done(lambda: self.url_to_file(url, absolutePathWithFileName))
+        self.futures.append(self.pool.submit(self.downloadThread, url, absolutePathWithFileName))
 
     def dic_to_json(self, dic, absolutePathWithFileName):
         with open(absolutePathWithFileName, "w") as f:
@@ -119,8 +115,8 @@ class App(ctk.CTk):
         self.versionDropdown = ctk.CTkComboBox(self, values=self.versions, width=250, height=60, font=("Bold", 40), command=self.versionsDropdown_callback)
         self.versionDropdown.set("26.1.2")
         self.versionDropdown.place(x=470, y=250)
-        self.installingText = ctk.CTkLabel(self, text="")
-        self.installingText.place(x=200, y=200)
+        self.installingText = ctk.CTkLabel(self, text="", font=("Bold", 22))
+        self.installingText.place(x=450, y=405)
         self.uiElements.append(self.nameText)
         self.uiElements.append(self.playButtton)
         self.uiElements.append(self.modLoaderDropdown)
@@ -147,10 +143,14 @@ class App(ctk.CTk):
             hash = asset["hash"]
             assetPath = os.path.join(RESOURCES, "assets", "objects", hash[:2])
             os.makedirs(assetPath, exist_ok=True)
-            
+            self.url_to_file(f"{MINECRAFT_BASE_ASSET_URL}{hash[:2]}/{hash}", os.path.join(assetPath, hash))
+        os.makedirs(os.path.join(RESOURCES, "assets", "indexes"), exist_ok=True)
+        with open(os.path.join(RESOURCES, "assets", "indexes", f"{version_dic["assetIndex"]["id"]}.json"), "w") as f:
+            json.dump(self.url_to_dic(version_dic["assetIndex"]["url"]), f, indent=4)
+        
         self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
         self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
-        self.wait_until_download_thread_done(continueFunc)
+        continueFunc()
     def fabricDownload(self, continueFunc):
         url = f"https://meta.fabricmc.net/v2/versions/loader/{self.version}"
         fabricVersionJson = self.url_to_dic(url)[0]
@@ -172,7 +172,7 @@ class App(ctk.CTk):
     
     def maven_to_file_path(self, basePath, maven):
         group, artifact, version = maven.split(sep=":")
-        return os.path.join(basePath, group.replace(".", os.sep), artifact, version, f"{artifact}-{version}.jar")
+        return os.path.join(basePath, group.replace(".", "\\"), artifact, version, f"{artifact}-{version}.jar")
 
     def startClient(self):
         if not os.path.exists(RESOURCES):
@@ -193,6 +193,9 @@ class App(ctk.CTk):
             thread.start()
 
     def runClient(self, username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
+        for future in self.futures:
+            future.result()
+        self.installingText.configure(text="")
         Client(username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath)
 
     def modLoaderDropdown_callback(self, selection):
