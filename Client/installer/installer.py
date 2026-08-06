@@ -60,6 +60,7 @@ if ctypes.windll.shell32.IsUserAnAdmin():
     with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "jdk-25.zip")) as zip:
         zip.extractall(JAVA)
     os.rename(os.path.join(JAVA, "jdk-25.0.4"), os.path.join(JAVA, "jdk-25"))
+    print("[LOG] Cleaning up temporary files...")
     shutil.rmtree(TEMP_INSTALLATION)
     if os.path.exists(TEMP_INSTALLATION):
         os.rmdir()

@@ -1,0 +1,2 @@
+@echo off
+C:\Users\User\AppData\Local\Python\pythoncore-3.14-64\Scripts\pyinstaller.exe --onefile --icon="C:\Users\User\Documents\GitHub\Minecraft-Client\gyrosclient-26.1.2\src\main\resources\assets\gyrosclient\icon.png" "C:\Users\User\Documents\GitHub\Minecraft-Client\Client\installer\uninstaller.py"
