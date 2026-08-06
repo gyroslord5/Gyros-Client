@@ -10,6 +10,7 @@ APPDATA = os.environ["appdata"]
 GYROSCLIENT = os.path.join(APPDATA, "GyrosClient")
 RESOURCES = os.path.join(GYROSCLIENT, "resources")
 PROFILES = os.path.join(GYROSCLIENT, "profiles")
+APP_INSTALL = os.path.join("c:\\", "Program Files", "Gyros Client", "app")
 BASE_FABRIC_URL = "https://maven.fabricmc.net/"
 MINECRAFT_BASE_ASSET_URL = "https://resources.download.minecraft.net/"
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
@@ -65,7 +66,9 @@ class App(ctk.CTk):
         self.versions = []
         self.pool = ThreadPoolExecutor(16)
         self.futures = []
-        self.startClientThread = threading.Thread(target=self.startClient)
+        self.profile = os.path.join(PROFILES, "default")
+        self.profiles = []
+        self.profileFrames = []
         for version in self.versionManifest["versions"]:
                     if version["type"] == "release":
                         self.versions.append(version["id"])
@@ -74,7 +77,13 @@ class App(ctk.CTk):
             21 : os.path.join(GYROSCLIENT, "Java", "jdk-21", "bin", "java.exe"),
             25 : os.path.join(GYROSCLIENT, "Java", "jdk-25", "bin", "java.exe")
         }
+        if not os.path.exists(RESOURCES):
+            os.mkdir(RESOURCES)
+            os.mkdir(os.path.join(RESOURCES, "assets"))
+            os.mkdir(os.path.join(RESOURCES, "versions"))
+            os.mkdir(os.path.join(RESOURCES, "libraries"))
         self.drawUI()
+        
 
     def url_to_dic(self, url):
         request = requests.get(url)
@@ -100,29 +109,100 @@ class App(ctk.CTk):
     def versionsDropdown_callback(self, selection):
         self.versionDropdown.set(selection)
         if selection in self.versions: self.version = selection
-        self.playButtton.configure(text=f"Play {self.version} - {self.modLoader[0].upper()}{self.modLoader[1:]}")
 
     def drawUI(self):
         for element in self.uiElements:
             element.destroy()
         self.uiElements.clear()
         self.nameText = ctk.CTkLabel(self, text="Gyros Client", font=("Bold", 40))
-        self.nameText.place(x=475, y=50)
-        self.playButtton = ctk.CTkButton(self, width=250, height=125, text=f"Play {self.version} - {self.modLoader[0].upper()}{self.modLoader[1:]}", font=("Bold", 40), command=self.startClientThread.start)
-        self.playButtton.place(x=410, y=450)
-        self.modLoaderDropdown = ctk.CTkComboBox(self, values=self.modLoaders, command=self.modLoaderDropdown_callback, state="readonly", width=250, height=60, font=("Bold", 40))
-        self.modLoaderDropdown.set(self.modLoader)
-        self.modLoaderDropdown.place(x=470, y=330)
-        self.versionDropdown = ctk.CTkComboBox(self, values=self.versions, width=250, height=60, font=("Bold", 40), command=self.versionsDropdown_callback)
-        self.versionDropdown.set("26.1.2")
-        self.versionDropdown.place(x=470, y=250)
+        self.nameText.place(relx=0.5, y=50, anchor="center")
+        self.playButtton = ctk.CTkButton(self, width=250, height=125, text=f"Play: {os.path.basename(self.profile)}", font=("Bold", 40), command=threading.Thread(target=self.startClient).start)
+        self.playButtton.place(relx=0.5, y=530, anchor="center")
         self.statusText = ctk.CTkLabel(self, text="", font=("Bold", 22), anchor="center", justify="center")
-        self.statusText.place(relx=0.5, rely=0.6, anchor="center")
+        self.statusText.place(relx=0.5, rely=0.5, anchor="center")
+        self.activeProfile = ctk.CTkLabel(self, text=f"Selected Profile: {os.path.basename(self.profile)}", font=("Bold", 22))
+        self.activeProfile.place(relx=0.5, y=90, anchor="center")
+        self.profilesFrame = ctk.CTkScrollableFrame(self, width=150, height=681)
+        self.profilesFrame.place(x=0, y=10)
+        self.toolbarFrame = ctk.CTkFrame(self, width=155, height=45, fg_color="gray15", corner_radius=15, bg_color="gray15")
+        self.toolbarFrame.place(x=0, y=665)
+        self.refreshButton = ctk.CTkButton(self.toolbarFrame, text="Refresh", bg_color="gray15", width=30, command=self.updateProfiles)
+        self.refreshButton.place(x=90, y=5)
+        self.createProfileButton = ctk.CTkButton(self.toolbarFrame, text="Create", width=60, command=self.openCreateProfileMenu)
+        self.createProfileButton.place(x=5, y=5)
         self.uiElements.append(self.nameText)
         self.uiElements.append(self.playButtton)
+        self.uiElements.append(self.statusText)
+        self.uiElements.append(self.profilesFrame)
+
+    def setProfile(self, profile):
+        self.profile = profile
+        print(profile)
+        self.activeProfile.configure(text=f"Selected Profile: {os.path.basename(self.profile)}")
+        self.playButtton.configure(text=f"Play: {os.path.basename(self.profile)}")
+
+    def openCreateProfileMenu(self):
+        self.playButtton.configure(state="disabled")
+        self.createProfileButton.configure(state="disabled")
+        self.createProfileMenu = ctk.CTkFrame(self, width=400, height=300)
+        self.createProfileMenu.place(relx=0.5, rely=0.4, anchor="center")
+        self.nameInputField = ctk.CTkEntry(self.createProfileMenu, placeholder_text="Enter Profile Name: ", width=300, height=40)
+        self.nameInputField.place(relx=0.5, y=50, anchor="center")
+        self.deditatedwamInput = ctk.CTkEntry(self.createProfileMenu, width=250, height=40, placeholder_text="RAM (in MB): Default=2056")
+        self.deditatedwamInput.place(relx=0.5, y=100, anchor="center")
+        self.versionDropdown = ctk.CTkComboBox(self.createProfileMenu, values=self.versions, width=250, height=45, font=("Bold", 26), command=self.versionsDropdown_callback)
+        self.versionDropdown.set("26.1.2")
+        self.versionDropdown.place(relx=0.5, y=150, anchor="center")
+        self.modLoaderDropdown = ctk.CTkComboBox(self.createProfileMenu, values=self.modLoaders, command=self.modLoaderDropdown_callback, state="readonly", width=250, height=45, font=("Bold", 26))
+        self.modLoaderDropdown.set(self.modLoader)
+        self.modLoaderDropdown.place(relx=0.5, y=200, anchor="center")
+        self.createButton = ctk.CTkButton(self.createProfileMenu, text="Create", command= lambda:self.createProfile(self.nameInputField.get(), self.modLoaderDropdown.get(), self.versionDropdown.get(), self.deditatedwamInput.get()))
+        self.createButton.place(x=200, y=265, anchor="center")
         self.uiElements.append(self.modLoaderDropdown)
         self.uiElements.append(self.versionDropdown)
-        self.uiElements.append(self.statusText)
+
+    def createProfile(self, name, modloader, version, ram):
+        os.makedirs(os.path.join(PROFILES, name), exist_ok=True)
+        if ram == "":
+            ram = "2056"
+        json_data = {
+            "name": name,
+            "modloader": modloader,
+            "version": version,
+            "ram": ram
+        }
+        with open(os.path.join(PROFILES, name, f"{name}-gyrosClient.json"), "w") as f:
+            json.dump(json_data, f, indent=4)
+        self.createProfileMenu.destroy()
+        self.updateProfiles()
+        self.playButtton.configure(state="normal")
+        self.createProfileButton.configure(state="normal")
+
+    def updateProfiles(self):
+        self.profilesFrame.update()
+        for profile in self.profiles:
+            frame = ctk.CTkFrame(self.profilesFrame, width=140, height=90, fg_color="gray10")
+            frame.pack(pady=5)
+            profileNameText = ctk.CTkLabel(frame, text=os.path.basename(profile), font=("Bold", 14))
+            profileNameText.place(x=70, y=30, anchor="center")
+            button = ctk.CTkButton(frame, text="Select Profile", width=120, command=lambda: self.setProfile(profile))
+            button.place(x=10, y=55)
+        elements = os.listdir(PROFILES)
+        temp = []
+        for element in elements:
+            if os.path.isdir(os.path.join(PROFILES, element)):
+                temp.append(os.path.join(PROFILES, element))
+        self.profiles = temp
+        for frame in self.profileFrames:
+            frame.destroy()
+        for profile in self.profiles:
+            frame = ctk.CTkFrame(self.profilesFrame, width=140, height=90, fg_color="gray10")
+            frame.pack(pady=5)
+            profileNameText = ctk.CTkLabel(frame, text=os.path.basename(profile), font=("Bold", 14))
+            profileNameText.place(x=70, y=30, anchor="center")
+            button = ctk.CTkButton(frame, text="Select Profile", width=120, command=lambda: self.setProfile(profile))
+            button.place(x=10, y=55)
+            self.profileFrames.append(frame)
 
     def vanillaDownload(self, continueFunc):
         for version in self.versionManifest["versions"]:
@@ -130,7 +210,7 @@ class App(ctk.CTk):
                 version_dic = self.url_to_dic(version["url"])
                 break
         downloadPath = os.path.join(RESOURCES, "versions", self.version)
-        os.mkdir(downloadPath)
+        os.makedirs(downloadPath, exist_ok=True)
         for lib in version_dic["libraries"]:
             folders = lib["downloads"]["artifact"]["path"].split(sep="/")
             path = ""
@@ -151,8 +231,9 @@ class App(ctk.CTk):
             asset = assets_dic["objects"][assetKey]
             hash = asset["hash"]
             assetPath = os.path.join(RESOURCES, "assets", "objects", hash[:2])
-            os.makedirs(assetPath, exist_ok=True)
-            self.url_to_file(f"{MINECRAFT_BASE_ASSET_URL}{hash[:2]}/{hash}", os.path.join(assetPath, hash))
+            if not os.path.exists(os.path.join(assetPath, hash)):
+                os.makedirs(assetPath, exist_ok=True)
+                self.url_to_file(f"{MINECRAFT_BASE_ASSET_URL}{hash[:2]}/{hash}", os.path.join(assetPath, hash))
     def fabricDownload(self, continueFunc):
         url = f"https://meta.fabricmc.net/v2/versions/loader/{self.version}"
         fabricVersionJson = self.url_to_dic(url)[0]
@@ -184,7 +265,7 @@ class App(ctk.CTk):
             os.mkdir(os.path.join(RESOURCES, "libraries"))
         if not os.path.exists(os.path.join(PROFILES, "default")):
             exit()
-        thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, os.path.join(PROFILES, "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
+        thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, self.profile, os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
         if self.modLoader == "fabric":
             continueFunction = lambda: self.fabricDownload(thread.start)
         else:
@@ -200,6 +281,5 @@ class App(ctk.CTk):
 
     def modLoaderDropdown_callback(self, selection):
         self.modLoader = selection
-        self.playButtton.configure(text=f"Play {self.version} - {self.modLoader[0].upper()}{self.modLoader[1:]}")
 app = App(1200, 700)
 app.mainloop()
