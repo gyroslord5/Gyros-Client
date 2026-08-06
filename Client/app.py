@@ -63,8 +63,9 @@ class App(ctk.CTk):
         self.uiElements = []
         self.versionManifest = self.url_to_dic(VERSION_MANIFEST_URL)
         self.versions = []
-        self.pool = ThreadPoolExecutor(max_workers=8)
+        self.pool = ThreadPoolExecutor(16)
         self.futures = []
+        self.startClientThread = threading.Thread(target=self.startClient)
         for version in self.versionManifest["versions"]:
                     if version["type"] == "release":
                         self.versions.append(version["id"])
@@ -82,12 +83,12 @@ class App(ctk.CTk):
     def downloadThread(self, url, absolutePathWithFileName):
         request = requests.get(url)
         filename = os.path.basename(absolutePathWithFileName)
-        self.installingText.configure(text=f"Installing: {filename}")
+        self.statusText.configure(text=f"Installing: {filename}")
         os.makedirs(os.path.dirname(absolutePathWithFileName), exist_ok=True)
 
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
-        self.installingText.configure(text="")
+        self.statusText.configure()
 
     def url_to_file(self, url, absolutePathWithFileName):
         self.futures.append(self.pool.submit(self.downloadThread, url, absolutePathWithFileName))
@@ -107,7 +108,7 @@ class App(ctk.CTk):
         self.uiElements.clear()
         self.nameText = ctk.CTkLabel(self, text="Gyros Client", font=("Bold", 40))
         self.nameText.place(x=475, y=50)
-        self.playButtton = ctk.CTkButton(self, width=250, height=125, text=f"Play {self.version} - {self.modLoader[0].upper()}{self.modLoader[1:]}", font=("Bold", 40), command=self.startClient)
+        self.playButtton = ctk.CTkButton(self, width=250, height=125, text=f"Play {self.version} - {self.modLoader[0].upper()}{self.modLoader[1:]}", font=("Bold", 40), command=self.startClientThread.start)
         self.playButtton.place(x=410, y=450)
         self.modLoaderDropdown = ctk.CTkComboBox(self, values=self.modLoaders, command=self.modLoaderDropdown_callback, state="readonly", width=250, height=60, font=("Bold", 40))
         self.modLoaderDropdown.set(self.modLoader)
@@ -115,13 +116,13 @@ class App(ctk.CTk):
         self.versionDropdown = ctk.CTkComboBox(self, values=self.versions, width=250, height=60, font=("Bold", 40), command=self.versionsDropdown_callback)
         self.versionDropdown.set("26.1.2")
         self.versionDropdown.place(x=470, y=250)
-        self.installingText = ctk.CTkLabel(self, text="", font=("Bold", 22))
-        self.installingText.place(x=450, y=405)
+        self.statusText = ctk.CTkLabel(self, text="", font=("Bold", 22), anchor="center", justify="center")
+        self.statusText.place(relx=0.5, rely=0.6, anchor="center")
         self.uiElements.append(self.nameText)
         self.uiElements.append(self.playButtton)
         self.uiElements.append(self.modLoaderDropdown)
         self.uiElements.append(self.versionDropdown)
-        self.uiElements.append(self.installingText)
+        self.uiElements.append(self.statusText)
 
     def vanillaDownload(self, continueFunc):
         for version in self.versionManifest["versions"]:
@@ -138,19 +139,20 @@ class App(ctk.CTk):
             if not os.path.exists(os.path.join(RESOURCES, "libraries", path)):
                 self.url_to_file(lib["downloads"]["artifact"]["url"], os.path.abspath(os.path.join(RESOURCES, "libraries", lib["downloads"]["artifact"]["path"])))
         assets_dic = self.url_to_dic(version_dic["assetIndex"]["url"])
+        self.futures.append(self.pool.submit(self.downloadAssets, assets_dic))
+        os.makedirs(os.path.join(RESOURCES, "assets", "indexes"), exist_ok=True)
+        with open(os.path.join(RESOURCES, "assets", "indexes", f"{version_dic["assetIndex"]["id"]}.json"), "w") as f:
+            json.dump(self.url_to_dic(version_dic["assetIndex"]["url"]), f, indent=4)
+        self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
+        self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
+        continueFunc()
+    def downloadAssets(self, assets_dic):
         for assetKey in assets_dic["objects"]:
             asset = assets_dic["objects"][assetKey]
             hash = asset["hash"]
             assetPath = os.path.join(RESOURCES, "assets", "objects", hash[:2])
             os.makedirs(assetPath, exist_ok=True)
             self.url_to_file(f"{MINECRAFT_BASE_ASSET_URL}{hash[:2]}/{hash}", os.path.join(assetPath, hash))
-        os.makedirs(os.path.join(RESOURCES, "assets", "indexes"), exist_ok=True)
-        with open(os.path.join(RESOURCES, "assets", "indexes", f"{version_dic["assetIndex"]["id"]}.json"), "w") as f:
-            json.dump(self.url_to_dic(version_dic["assetIndex"]["url"]), f, indent=4)
-        
-        self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
-        self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
-        continueFunc()
     def fabricDownload(self, continueFunc):
         url = f"https://meta.fabricmc.net/v2/versions/loader/{self.version}"
         fabricVersionJson = self.url_to_dic(url)[0]
@@ -183,19 +185,17 @@ class App(ctk.CTk):
         if not os.path.exists(os.path.join(PROFILES, "default")):
             exit()
         thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, os.path.join(PROFILES, "default"), os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
-        if not os.path.exists(os.path.join(RESOURCES, "versions", self.version)):
-            if self.modLoader == "fabric":
-                continueFunction = lambda: self.fabricDownload(thread.start)
-            else:
-                continueFunction = thread.start
-            self.vanillaDownload(continueFunction)
+        if self.modLoader == "fabric":
+            continueFunction = lambda: self.fabricDownload(thread.start)
         else:
-            thread.start()
+            continueFunction = thread.start
+        self.vanillaDownload(continueFunction)
 
     def runClient(self, username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
         for future in self.futures:
             future.result()
-        self.installingText.configure(text="")
+        self.statusText.configure(text="Starting Client...")
+        app.after(5000, self.statusText.configure(text=""))
         Client(username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath)
 
     def modLoaderDropdown_callback(self, selection):
