@@ -150,7 +150,7 @@ class App(ctk.CTk):
         self.createProfileMenu.place(relx=0.5, rely=0.4, anchor="center")
         self.nameInputField = ctk.CTkEntry(self.createProfileMenu, placeholder_text="Enter Profile Name: ", width=300, height=40)
         self.nameInputField.place(relx=0.5, y=50, anchor="center")
-        self.deditatedwamInput = ctk.CTkEntry(self.createProfileMenu, width=250, height=40, placeholder_text="RAM (in MB): Default=2056")
+        self.deditatedwamInput = ctk.CTkEntry(self.createProfileMenu, width=250, height=40, placeholder_text="RAM (in GB): Default=2")
         self.deditatedwamInput.place(relx=0.5, y=100, anchor="center")
         self.versionDropdown = ctk.CTkComboBox(self.createProfileMenu, values=self.versions, width=250, height=45, font=("Bold", 26), command=self.versionsDropdown_callback)
         self.versionDropdown.set("26.1.2")
@@ -166,7 +166,7 @@ class App(ctk.CTk):
     def createProfile(self, name, modloader, version, ram):
         os.makedirs(os.path.join(PROFILES, name), exist_ok=True)
         if ram == "":
-            ram = "2056"
+            ram = "2"
         json_data = {
             "name": name,
             "modloader": modloader,
@@ -195,7 +195,7 @@ class App(ctk.CTk):
             frame.pack(pady=5)
             profileNameText = ctk.CTkLabel(frame, text=os.path.basename(profile), font=("Bold", 14))
             profileNameText.place(x=70, y=30, anchor="center")
-            button = ctk.CTkButton(frame, text="Select Profile", width=120, command=lambda: self.setProfile(profile))
+            button = ctk.CTkButton(frame, text="Select Profile", width=120, command=lambda profile=profile: self.setProfile(profile))
             button.place(x=10, y=55)
             self.profileFrames.append(frame)
     def vanillaDownload(self, continueFunc):
