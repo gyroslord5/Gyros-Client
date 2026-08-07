@@ -136,9 +136,11 @@ class App(ctk.CTk):
         self.uiElements.append(self.profilesFrame)
 
     def setProfile(self, profile):
-        self.profile = profile
         print(profile)
+        self.profile = profile
+        print(self.profile)
         self.activeProfile.configure(text=f"Selected Profile: {os.path.basename(self.profile)}")
+        self.playButtton.update()
         self.playButtton.configure(text=f"Play: {os.path.basename(self.profile)}")
 
     def openCreateProfileMenu(self):
@@ -180,13 +182,6 @@ class App(ctk.CTk):
 
     def updateProfiles(self):
         self.profilesFrame.update()
-        for profile in self.profiles:
-            frame = ctk.CTkFrame(self.profilesFrame, width=140, height=90, fg_color="gray10")
-            frame.pack(pady=5)
-            profileNameText = ctk.CTkLabel(frame, text=os.path.basename(profile), font=("Bold", 14))
-            profileNameText.place(x=70, y=30, anchor="center")
-            button = ctk.CTkButton(frame, text="Select Profile", width=120, command=lambda: self.setProfile(profile))
-            button.place(x=10, y=55)
         elements = os.listdir(PROFILES)
         temp = []
         for element in elements:
@@ -203,7 +198,6 @@ class App(ctk.CTk):
             button = ctk.CTkButton(frame, text="Select Profile", width=120, command=lambda: self.setProfile(profile))
             button.place(x=10, y=55)
             self.profileFrames.append(frame)
-
     def vanillaDownload(self, continueFunc):
         for version in self.versionManifest["versions"]:
             if version["id"] == self.version:
