@@ -6,11 +6,13 @@ import customtkinter as ctk
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+import server
 APPDATA = os.environ["appdata"]
 GYROSCLIENT = os.path.join(APPDATA, "GyrosClient")
 RESOURCES = os.path.join(GYROSCLIENT, "resources")
 PROFILES = os.path.join(GYROSCLIENT, "profiles")
 APP_INSTALL = os.path.join("c:\\", "Program Files", "Gyros Client", "app")
+SERVERS = os.path.join(GYROSCLIENT, "Servers")
 BASE_FABRIC_URL = "https://maven.fabricmc.net/"
 MINECRAFT_BASE_ASSET_URL = "https://resources.download.minecraft.net/"
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
@@ -58,13 +60,17 @@ class App(ctk.CTk):
         super().__init__()
         self.title("Gyros Client")
         self.geometry(f"{screenX}x{screenY}")
+        self.screenX = screenX
+        self.screenY = screenY
         self.version = "26.1.2"
         self.modLoaders = ["fabric", "vanilla"]
         self.modLoader = self.modLoaders[0]
-        self.uiElements = []
         self.versionManifest = self.url_to_dic(VERSION_MANIFEST_URL)
         self.versions = []
+        self.currentMenuFrame = self.currentMenuFrame = ctk.CTkFrame(self, width=1020, height=640, fg_color="gray14")
+        self.currentMenuFrame.place(x=175, y=10)
         self.pool = ThreadPoolExecutor(16)
+        self.selectedServer = "None"
         self.futures = []
         self.profile = os.path.join(PROFILES, "default")
         self.profiles = []
@@ -82,7 +88,8 @@ class App(ctk.CTk):
             os.mkdir(os.path.join(RESOURCES, "assets"))
             os.mkdir(os.path.join(RESOURCES, "versions"))
             os.mkdir(os.path.join(RESOURCES, "libraries"))
-        self.drawUI()
+        self.drawUniversalUI()
+        self.drawMainScreen()
         
 
     def url_to_dic(self, url):
@@ -110,40 +117,96 @@ class App(ctk.CTk):
         self.versionDropdown.set(selection)
         if selection in self.versions: self.version = selection
 
-    def drawUI(self):
-        for element in self.uiElements:
-            element.destroy()
-        self.uiElements.clear()
+    def drawUniversalUI(self):
         self.nameText = ctk.CTkLabel(self, text="Gyros Client", font=("Bold", 40))
-        self.nameText.place(relx=0.5, y=50, anchor="center")
-        self.playButtton = ctk.CTkButton(self, width=250, height=125, text=f"Play: {os.path.basename(self.profile)}", font=("Bold", 40), command=threading.Thread(target=self.startClient).start)
-        self.playButtton.place(relx=0.5, y=530, anchor="center")
+        self.nameText.place(relx=0.525, y=50, anchor="center")
+        self.sideBar = ctk.CTkScrollableFrame(self, width=150, height=681)
+        self.sideBar.place(x=0, y=10)
         self.statusText = ctk.CTkLabel(self, text="", font=("Bold", 22), anchor="center", justify="center")
-        self.statusText.place(relx=0.5, rely=0.5, anchor="center")
-        self.activeProfile = ctk.CTkLabel(self, text=f"Selected Profile: {os.path.basename(self.profile)}", font=("Bold", 22))
-        self.activeProfile.place(relx=0.5, y=90, anchor="center")
-        self.profilesFrame = ctk.CTkScrollableFrame(self, width=150, height=681)
-        self.profilesFrame.place(x=0, y=10)
+        self.statusText.place(relx=0.525, rely=0.65, anchor="center")
+        self.menuBar = ctk.CTkFrame(self, width=400, height=50, fg_color="gray10")
+        self.menuBar.place(relx=0.525, y=675, anchor="center")
+        self.mainMenuButton = ctk.CTkButton(self.menuBar, width=30, height=30, text="Main", command=self.drawMainScreen)
+        self.mainMenuButton.place(x=35, rely=0.5, anchor="center")
+        self.serverMenuButton = ctk.CTkButton(self.menuBar, width=30, height=30, text="Servers", command=self.drawServersMenu)
+        self.serverMenuButton.place(x=100, rely=0.5, anchor="center")
+
+    def drawMainScreen(self):
+        for object in self.currentMenuFrame.winfo_children():
+            object.destroy()
+        for object in self.sideBar.winfo_children():
+            object.destroy()
+        self.playButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Play: {os.path.basename(self.profile)}", font=("Bold", 40), command=threading.Thread(target=self.startClient).start)
+        self.playButtton.place(relx=0.45, y=530, anchor="center")
+        self.activeProfile = ctk.CTkLabel(self.currentMenuFrame, text=f"Selected Profile: {os.path.basename(self.profile)}", font=("Bold", 22))
+        self.activeProfile.place(relx=0.45, y=90, anchor="center")
         self.toolbarFrame = ctk.CTkFrame(self, width=155, height=45, fg_color="gray15", corner_radius=15, bg_color="gray15")
         self.toolbarFrame.place(x=0, y=665)
         self.refreshButton = ctk.CTkButton(self.toolbarFrame, text="Refresh", bg_color="gray15", width=30, command=self.updateProfiles)
-        self.refreshButton.place(x=90, y=5)
-        self.createProfileButton = ctk.CTkButton(self.toolbarFrame, text="Create", width=60, command=self.openCreateProfileMenu)
+        self.refreshButton.place(x=120, rely=0.4, anchor="center")
+        self.createProfileButton = ctk.CTkButton(self.toolbarFrame, text="+", width=30, command=self.drawCreateProfileMenu)
         self.createProfileButton.place(x=5, y=5)
-        self.uiElements.append(self.nameText)
-        self.uiElements.append(self.playButtton)
-        self.uiElements.append(self.statusText)
-        self.uiElements.append(self.profilesFrame)
+        self.updateProfiles()
+
+    def updateServers(self):
+        temp = []
+        for element in os.listdir(SERVERS):
+            if os.path.isdir(os.path.join(SERVERS, element)):
+                temp.append(element)
+        self.servers = temp
+        for frame in self.sideBar.winfo_children():
+            frame.destroy()
+        for server in self.servers:
+            frame = ctk.CTkFrame(self.sideBar, width=140, height=90, fg_color="gray10")
+            frame.pack(pady=5)
+            profileNameText = ctk.CTkLabel(frame, text=server, font=("Bold", 14))
+            profileNameText.place(x=70, y=30, anchor="center")
+            button = ctk.CTkButton(frame, text="Select Server", width=120, command=lambda server=server: self.setServer(server))
+            button.place(x=10, y=55)
+
+
+    def drawServersMenu(self):
+        for object in self.currentMenuFrame.winfo_children():
+            object.destroy()
+        for frame in self.sideBar.winfo_children():
+            frame.destroy()
+        for object in self.toolbarFrame.winfo_children():
+            object.destroy()
+        self.updateServers()
+        self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Start: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.startServerButtonClicked)
+        self.startServerButtton.place(relx=0.45, y=530, anchor="center")
+        self.createServerButton = ctk.CTkButton(self.toolbarFrame, text="+", width=30, command=self.drawCreateServerMenu)
+        self.createServerButton.place(x=5, y=5)
+
+
+    def startServerButtonClicked(self):
+        if self.selectedServer == "None":
+            self.statusText.configure(text="You need to Select an Server!")
+        else:
+            threading.Thread(target=lambda: self.startServer(os.path.join(SERVERS, self.selectedServer), self.serverJson["version"], self.serverJson["modloader"], self.serverJson["ram"], self.java[self.serverJson["java"]])).start()
+
+    def startServer(self, serverPath, version, modloader, ram, java):
+        serverManager = server.Server(serverPath, version, modloader, ram, java)
+        serverManager.start()
+
+    def file_to_dic(self, file):
+        with open(file, "r") as f:
+            dic = json.load(f)
+        return dic
+
+    def setServer(self, server):
+        self.selectedServer = server
+        self.serverJson = self.file_to_dic(os.path.join(SERVERS, self.selectedServer, "gyrosclient.json"))
+        if self.startServerButtton is not None:
+            self.startServerButtton.configure(text=f"Start: {os.path.basename(self.selectedServer)}")
 
     def setProfile(self, profile):
-        print(profile)
         self.profile = profile
-        print(self.profile)
         self.activeProfile.configure(text=f"Selected Profile: {os.path.basename(self.profile)}")
         self.playButtton.update()
         self.playButtton.configure(text=f"Play: {os.path.basename(self.profile)}")
 
-    def openCreateProfileMenu(self):
+    def drawCreateProfileMenu(self):
         self.playButtton.configure(state="disabled")
         self.createProfileButton.configure(state="disabled")
         self.createProfileMenu = ctk.CTkFrame(self, width=400, height=300)
@@ -160,8 +223,43 @@ class App(ctk.CTk):
         self.modLoaderDropdown.place(relx=0.5, y=200, anchor="center")
         self.createButton = ctk.CTkButton(self.createProfileMenu, text="Create", command= lambda:self.createProfile(self.nameInputField.get(), self.modLoaderDropdown.get(), self.versionDropdown.get(), self.deditatedwamInput.get()))
         self.createButton.place(x=200, y=265, anchor="center")
-        self.uiElements.append(self.modLoaderDropdown)
-        self.uiElements.append(self.versionDropdown)
+
+    def drawCreateServerMenu(self):
+        self.createServerMenu = ctk.CTkFrame(self.currentMenuFrame, fg_color="gray10", width=500, height=350)
+        self.createServerMenu.place(x=215, y=70)
+        self.createServerText = ctk.CTkLabel(self.createServerMenu, text="Create Server", font=("Bold", 22))
+        self.createServerText.place(relx=0.5, rely=0.075, anchor="center")
+        self.nameInput = ctk.CTkEntry(self.createServerMenu, width=300, placeholder_text="Enter Server name: ", height=56)
+        self.nameInput.place(relx=0.5, rely=0.2, anchor="center")
+        self.wamInput = ctk.CTkEntry(self.createServerMenu, width=300, placeholder_text="Ram (Default=4GB): ", height=56)
+        self.wamInput.place(relx=0.5, rely=0.4, anchor="center")
+        self.serverVersionDropdown = ctk.CTkComboBox(self.createServerMenu, width=250, height=45, values=self.versions)
+        self.serverVersionDropdown.place(relx=0.5, rely=0.6, anchor="center")
+        self.serverModloaderDropdown = ctk.CTkComboBox(self.createServerMenu, width=250, height=45, values=self.modLoaders)
+        self.serverModloaderDropdown.place(relx=0.5, rely=0.8, anchor="center")
+        self.createServerButton = ctk.CTkButton(self.createServerMenu, width=450, text="Create", command=lambda: self.createServer(self.nameInput.get(), self.serverVersionDropdown.get(), self.serverModloaderDropdown.get(), self.wamInput.get()))
+        self.createServerButton.place(relx=0.5, rely=0.95, anchor="center")
+
+    def createServer(self, name, version, modloader, ram):
+        for object in self.versionManifest["versions"]:
+            if object["id"] == version:
+                version_dic = self.url_to_dic(object["url"])
+        java = version_dic["javaVersion"]["majorVersion"]
+        os.mkdir(os.path.join(SERVERS, name))
+        if ram == "":
+            ram = "4"
+        gyrosclientJson = {
+            "version" : version,
+            "modloader" : modloader,
+            "ram" : ram,
+            "java" : java
+        }
+        with open(os.path.join(SERVERS, name, "gyrosclient.json"), "w") as f:
+            json.dump(gyrosclientJson, f, indent=4)
+        with open(os.path.join(SERVERS, name, "eula.txt"), "w") as f:
+            f.write("eula=true")
+        self.updateServers()
+        self.createServerMenu.destroy()
 
     def createProfile(self, name, modloader, version, ram):
         os.makedirs(os.path.join(PROFILES, name), exist_ok=True)
@@ -181,7 +279,7 @@ class App(ctk.CTk):
         self.createProfileButton.configure(state="normal")
 
     def updateProfiles(self):
-        self.profilesFrame.update()
+        self.sideBar.update()
         elements = os.listdir(PROFILES)
         temp = []
         for element in elements:
@@ -191,7 +289,7 @@ class App(ctk.CTk):
         for frame in self.profileFrames:
             frame.destroy()
         for profile in self.profiles:
-            frame = ctk.CTkFrame(self.profilesFrame, width=140, height=90, fg_color="gray10")
+            frame = ctk.CTkFrame(self.sideBar, width=140, height=90, fg_color="gray10")
             frame.pack(pady=5)
             profileNameText = ctk.CTkLabel(frame, text=os.path.basename(profile), font=("Bold", 14))
             profileNameText.place(x=70, y=30, anchor="center")
