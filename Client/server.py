@@ -26,5 +26,4 @@ class Server:
                         break
             if not os.path.exists(os.path.join(self.server, "server.jar")):
                 self.download_file(version_dic["downloads"]["server"]["url"], os.path.join(self.server, "server.jar"))
-            subprocess.run([self.java, f"-Xmx{self.ram}G", f"-Xms{self.ram}G", "-jar", "server.jar", "nogui"], cwd=self.server)
-            del self
+            return [self.java, f"-Xmx{self.ram}G", f"-Xms{self.ram}G", "-jar", "server.jar", "nogui"], self.server

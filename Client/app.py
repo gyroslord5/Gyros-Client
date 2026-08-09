@@ -26,6 +26,8 @@ class Client:
         self.versionPath = versionPath
         self.libraries = libraries
         self.assetsPath = assetsPath
+
+    def initClient(self):
         print("Initalizing Client...")
         with open(os.path.join(self.versionPath, self.version, f"{self.version}.json"), "r") as f:
             self.vanillajson = json.load(f)
@@ -35,21 +37,22 @@ class Client:
                 self.classpath += f"{os.path.join(self.libraries, lib["downloads"]["artifact"]["path"])};"
         if self.modLoader == "fabric":
             with open(os.path.join(self.versionPath, f"{self.modLoader}-{self.version}", f"{self.modLoader}-{self.version}.json"), "r") as f:
-                self.fabricjson = json.load(f)
-            self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), self.fabricjson["loader"]["maven"])
-            for lib in self.fabricjson["launcherMeta"]["libraries"]["common"]:
-                self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
+                    self.fabricjson = json.load(f)
+        self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), self.fabricjson["loader"]["maven"])
+        for lib in self.fabricjson["launcherMeta"]["libraries"]["common"]:
+            self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
         self.classpath = self.classpath[0:-1]
         if self.modLoader == "fabric":startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.fabricjson["launcherMeta"]["mainClass"]["client"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", "0", "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"]] 
         else: startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.vanillajson["mainClass"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", "0", "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"]]
-        self.start(startCommand)
+        proccess = self.start(startCommand)
+        return proccess
 
     def maven_to_file_path(self, basePath, maven):
         group, artifact, artifactVersion = maven.split(sep=":")
         return f"{os.path.join(basePath, group.replace(".", "\\"), artifact, artifactVersion, f"{artifact}-{artifactVersion}.jar")};"
 
     def start(self, command):
-        subprocess.run(command)
+        return subprocess.Popen(command)
         del self
 
 
@@ -67,10 +70,12 @@ class App(ctk.CTk):
         self.modLoader = self.modLoaders[0]
         self.versionManifest = self.url_to_dic(VERSION_MANIFEST_URL)
         self.versions = []
+        self.clientProccess = None
         self.currentMenuFrame = self.currentMenuFrame = ctk.CTkFrame(self, width=1020, height=640, fg_color="gray14")
         self.currentMenuFrame.place(x=175, y=10)
         self.pool = ThreadPoolExecutor(16)
         self.selectedServer = "None"
+        self.serverRunning = False
         self.futures = []
         self.profile = os.path.join(PROFILES, "default")
         self.profiles = []
@@ -96,15 +101,17 @@ class App(ctk.CTk):
         request = requests.get(url)
         return request.json()
 
+    def updateStatusText(self, str):
+        self.statusText.configure(text=str)
+
     def downloadThread(self, url, absolutePathWithFileName):
         request = requests.get(url)
         filename = os.path.basename(absolutePathWithFileName)
-        self.statusText.configure(text=f"Installing: {filename}")
+        app.after(0, lambda: self.updateStatusText(f"Installing: {filename}"))
         os.makedirs(os.path.dirname(absolutePathWithFileName), exist_ok=True)
 
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
-        self.statusText.configure()
 
     def url_to_file(self, url, absolutePathWithFileName):
         self.futures.append(self.pool.submit(self.downloadThread, url, absolutePathWithFileName))
@@ -136,7 +143,7 @@ class App(ctk.CTk):
             object.destroy()
         for object in self.sideBar.winfo_children():
             object.destroy()
-        self.playButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Play: {os.path.basename(self.profile)}", font=("Bold", 40), command=threading.Thread(target=self.startClient).start)
+        self.playButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Play: {os.path.basename(self.profile)}", font=("Bold", 40), command=self.playButton_callback)
         self.playButtton.place(relx=0.45, y=530, anchor="center")
         self.activeProfile = ctk.CTkLabel(self.currentMenuFrame, text=f"Selected Profile: {os.path.basename(self.profile)}", font=("Bold", 22))
         self.activeProfile.place(relx=0.45, y=90, anchor="center")
@@ -173,21 +180,39 @@ class App(ctk.CTk):
         for object in self.toolbarFrame.winfo_children():
             object.destroy()
         self.updateServers()
-        self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Start: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.startServerButtonClicked)
-        self.startServerButtton.place(relx=0.45, y=530, anchor="center")
+        if not self.serverRunning:
+            self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Start: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.startServerButtonClicked)
+            self.startServerButtton.place(relx=0.45, y=530, anchor="center")
+        else:
+            self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Stop: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.stopServer, fg_color="red", hover_color="#7B2320")
+            self.startServerButtton.place(relx=0.45, y=530, anchor="center")
         self.createServerButton = ctk.CTkButton(self.toolbarFrame, text="+", width=30, command=self.drawCreateServerMenu)
         self.createServerButton.place(x=5, y=5)
 
 
     def startServerButtonClicked(self):
         if self.selectedServer == "None":
-            self.statusText.configure(text="You need to Select an Server!")
+            self.after(0, lambda: self.updateStatusText("You need to select an server!"))
         else:
             threading.Thread(target=lambda: self.startServer(os.path.join(SERVERS, self.selectedServer), self.serverJson["version"], self.serverJson["modloader"], self.serverJson["ram"], self.java[self.serverJson["java"]])).start()
 
     def startServer(self, serverPath, version, modloader, ram, java):
+        self.serverRunning = True
+        self.after(0, lambda: self.updateStatusText("Starting Server..."))
+        self.after(3000, lambda: self.updateStatusText(""))
         serverManager = server.Server(serverPath, version, modloader, ram, java)
-        serverManager.start()
+        argv, wd = serverManager.start()
+        self.serverProccess = subprocess.Popen(argv, cwd=wd, stdin=subprocess.PIPE, text=True)
+        self.startServerButtton.configure(text=f"Stop: {os.path.basename(self.selectedServer)}", fg_color="red", hover_color="#7B2320", command=self.stopServer, width=250, height=125, state="disabled")
+        self.after(10000, lambda: self.startServerButtton.configure(state="normal"))
+
+    def stopServer(self):
+        self.serverRunning = False
+        self.after(0, lambda: self.updateStatusText("Stopping Server..."))
+        self.after(2000, lambda: self.updateStatusText(""))
+        self.serverProccess.stdin.write("stop\n")
+        self.serverProccess.stdin.flush()
+        self.startServerButtton.configure(text=f"Start: {os.path.basename(self.selectedServer)}", fg_color="#1F538D", hover_color="#1C487A", command=self.startServerButtonClicked)
 
     def file_to_dic(self, file):
         with open(file, "r") as f:
@@ -315,9 +340,11 @@ class App(ctk.CTk):
         os.makedirs(os.path.join(RESOURCES, "assets", "indexes"), exist_ok=True)
         with open(os.path.join(RESOURCES, "assets", "indexes", f"{version_dic["assetIndex"]["id"]}.json"), "w") as f:
             json.dump(self.url_to_dic(version_dic["assetIndex"]["url"]), f, indent=4)
-        self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
-        self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
-        continueFunc()
+        if not os.path.exists(os.path.join(downloadPath, f"{self.version}.jar")):
+            self.url_to_file(version_dic["downloads"]["client"]["url"], os.path.join(downloadPath, f"{self.version}.jar"))
+        if not os.path.exists(os.path.join(f"{self.version}.json")):
+            self.dic_to_json(version_dic, os.path.join(RESOURCES, "versions", self.version, f"{self.version}.json"))
+        threading.Thread(target=continueFunc).start()
     def downloadAssets(self, assets_dic):
         for assetKey in assets_dic["objects"]:
             asset = assets_dic["objects"][assetKey]
@@ -327,9 +354,12 @@ class App(ctk.CTk):
                 os.makedirs(assetPath, exist_ok=True)
                 self.url_to_file(f"{MINECRAFT_BASE_ASSET_URL}{hash[:2]}/{hash}", os.path.join(assetPath, hash))
     def fabricDownload(self, continueFunc):
+        print(threading.current_thread().name)
         url = f"https://meta.fabricmc.net/v2/versions/loader/{self.version}"
         fabricVersionJson = self.url_to_dic(url)[0]
-        self.url_to_file(self.maven_to_url(BASE_FABRIC_URL, fabricVersionJson["loader"]["maven"]), self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), fabricVersionJson["loader"]["maven"]))
+        fabricloaderpath = self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), fabricVersionJson["loader"]["maven"])
+        if not os.path.exists(fabricloaderpath):
+            self.url_to_file(self.maven_to_url(BASE_FABRIC_URL, fabricVersionJson["loader"]["maven"]), fabricloaderpath)
         for lib in fabricVersionJson["launcherMeta"]["libraries"]["common"]:
             path = self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
             if not os.path.exists(path):
@@ -341,6 +371,9 @@ class App(ctk.CTk):
                 json.dump(fabricVersionJson, f, indent=4)
         continueFunc()
 
+    def playButton_callback(self):
+        threading.Thread(target=self.startClient).start()
+
     def maven_to_url(self, baseURL, maven):
         group, artifact, version = maven.split(sep=":")
         return f"{baseURL.rstrip("/")}/{group.replace(".", "/")}/{artifact}/{version}/{artifact}-{version}.jar"
@@ -349,7 +382,13 @@ class App(ctk.CTk):
         group, artifact, version = maven.split(sep=":")
         return os.path.join(basePath, group.replace(".", "\\"), artifact, version, f"{artifact}-{version}.jar")
 
+    def stopClient(self):
+        if self.clientProccess is not None:
+            self.clientProccess.kill()
+            self.playButtton.configure(text=f"Start: {os.path.basename(self.profile)}", fg_color="#1F538D", hover_color="#1C487A", command=self.playButton_callback)
+
     def startClient(self):
+        self.playButtton.configure(text=f"Stop: {os.path.basename(self.profile)}", fg_color="red", hover_color="#7B2320", command=self.stopClient)
         if not os.path.exists(RESOURCES):
             os.mkdir(RESOURCES)
             os.mkdir(os.path.join(RESOURCES, "assets"))
@@ -357,19 +396,20 @@ class App(ctk.CTk):
             os.mkdir(os.path.join(RESOURCES, "libraries"))
         if not os.path.exists(os.path.join(PROFILES, "default")):
             exit()
-        thread = threading.Thread(target=lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, self.profile, os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets")))
+        runclientfunc = lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, self.profile, os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets"))
         if self.modLoader == "fabric":
-            continueFunction = lambda: self.fabricDownload(thread.start)
+            continueFunction = lambda: self.fabricDownload(runclientfunc)
         else:
-            continueFunction = thread.start
+            continueFunction = runclientfunc
         self.vanillaDownload(continueFunction)
 
     def runClient(self, username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
         for future in self.futures:
             future.result()
-        self.statusText.configure(text="Starting Client...")
-        app.after(5000, self.statusText.configure(text=""))
-        Client(username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath)
+        self.after(0, lambda: self.updateStatusText("Starting Client..."))
+        app.after(10000, lambda: self.updateStatusText(""))
+        self.client = Client(username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath)
+        self.clientProccess = self.client.initClient()
 
     def modLoaderDropdown_callback(self, selection):
         self.modLoader = selection
