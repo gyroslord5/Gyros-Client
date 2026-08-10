@@ -6,12 +6,15 @@ import customtkinter as ctk
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import server
+import minecraft_launcher_lib
 APPDATA = os.environ["appdata"]
 GYROSCLIENT = os.path.join(APPDATA, "GyrosClient")
 RESOURCES = os.path.join(GYROSCLIENT, "resources")
 PROFILES = os.path.join(GYROSCLIENT, "profiles")
 APP_INSTALL = os.path.join("c:\\", "Program Files", "Gyros Client", "app")
 SERVERS = os.path.join(GYROSCLIENT, "Servers")
+CLIENT_ID = "ef1facf9-2e00-4b25-be9a-452d48a68b4d"
+REDIRECT_URL = "http://localhost:8000"
 BASE_FABRIC_URL = "https://maven.fabricmc.net/"
 MINECRAFT_BASE_ASSET_URL = "https://resources.download.minecraft.net/"
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
