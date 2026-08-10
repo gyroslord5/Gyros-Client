@@ -4,7 +4,6 @@ import json
 import os
 import customtkinter as ctk
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 import server
 APPDATA = os.environ["appdata"]
@@ -80,6 +79,8 @@ class App(ctk.CTk):
         self.profile = os.path.join(PROFILES, "default")
         self.profiles = []
         self.profileFrames = []
+        self.serverProccess = None
+        threading.Thread(target=self.handleInput).start()
         for version in self.versionManifest["versions"]:
                     if version["type"] == "release":
                         self.versions.append(version["id"])
@@ -96,6 +97,13 @@ class App(ctk.CTk):
         self.drawUniversalUI()
         self.drawMainScreen()
         
+    def handleInput(self):
+        inp = input()
+        if self.serverProccess is not None:
+            if self.serverProccess.poll() is None:
+                self.serverProccess.stdin.write(f"{inp}\n")
+                self.serverProccess.stdin.flush()
+        self.handleInput()
 
     def url_to_dic(self, url):
         request = requests.get(url)
@@ -168,7 +176,9 @@ class App(ctk.CTk):
             frame.pack(pady=5)
             profileNameText = ctk.CTkLabel(frame, text=server, font=("Bold", 14))
             profileNameText.place(x=70, y=30, anchor="center")
+            self.selectServerButtons = []
             button = ctk.CTkButton(frame, text="Select Server", width=120, command=lambda server=server: self.setServer(server))
+            self.selectServerButton.append(button)
             button.place(x=10, y=55)
 
 
@@ -199,12 +209,20 @@ class App(ctk.CTk):
     def startServer(self, serverPath, version, modloader, ram, java):
         self.serverRunning = True
         self.after(0, lambda: self.updateStatusText("Starting Server..."))
-        self.after(3000, lambda: self.updateStatusText(""))
+        self.after(10000, lambda: self.updateStatusText(""))
         serverManager = server.Server(serverPath, version, modloader, ram, java)
         argv, wd = serverManager.start()
         self.serverProccess = subprocess.Popen(argv, cwd=wd, stdin=subprocess.PIPE, text=True)
+        threading.Thread(target=self.waitForServer).start()
+        for button in self.selectServerButtons:
+            button.configure(state="disabled")
         self.startServerButtton.configure(text=f"Stop: {os.path.basename(self.selectedServer)}", fg_color="red", hover_color="#7B2320", command=self.stopServer, width=250, height=125, state="disabled")
         self.after(10000, lambda: self.startServerButtton.configure(state="normal"))
+
+    def waitForServer(self):
+        self.serverProccess.wait()
+        self.startServerButtton.configure(text=f"Start: {os.path.basename(self.selectedServer)}", fg_color="#1F538D", hover_color="#1C487A", command=self.startServerButtonClicked)
+        
 
     def stopServer(self):
         self.serverRunning = False
@@ -212,7 +230,6 @@ class App(ctk.CTk):
         self.after(2000, lambda: self.updateStatusText(""))
         self.serverProccess.stdin.write("stop\n")
         self.serverProccess.stdin.flush()
-        self.startServerButtton.configure(text=f"Start: {os.path.basename(self.selectedServer)}", fg_color="#1F538D", hover_color="#1C487A", command=self.startServerButtonClicked)
 
     def file_to_dic(self, file):
         with open(file, "r") as f:
@@ -236,8 +253,6 @@ class App(ctk.CTk):
         self.createProfileButton.configure(state="disabled")
         self.createProfileMenu = ctk.CTkFrame(self, width=400, height=300)
         self.createProfileMenu.place(relx=0.525, rely=0.4, anchor="center")
-        self.createProfileStatusText = ctk.CTkLabel(self.createProfileMenu, text="")
-        self.createProfileStatusText.place(relx=0.5, rely=0.8, anchor="center")
         self.nameInputField = ctk.CTkEntry(self.createProfileMenu, placeholder_text="Enter Profile Name: ", width=300, height=40)
         self.nameInputField.place(relx=0.5, y=50, anchor="center")
         self.deditatedwamInput = ctk.CTkEntry(self.createProfileMenu, width=250, height=40, placeholder_text="RAM (in GB): Default=2")
@@ -261,6 +276,8 @@ class App(ctk.CTk):
     def drawCreateServerMenu(self):
         self.createServerMenu = ctk.CTkFrame(self.currentMenuFrame, fg_color="gray10", width=500, height=350)
         self.createServerMenu.place(x=215, y=70)
+        self.createServerStatusText = ctk.CTkLabel(self.createServerMenu, text="")
+        self.createServerStatusText.place(relx=0.5, rely=0.88, anchor="center")
         self.createServerText = ctk.CTkLabel(self.createServerMenu, text="Create Server", font=("Bold", 22))
         self.createServerText.place(relx=0.5, rely=0.075, anchor="center")
         self.nameInput = ctk.CTkEntry(self.createServerMenu, width=300, placeholder_text="Enter Server name: ", height=56)
@@ -279,21 +296,31 @@ class App(ctk.CTk):
             if object["id"] == version:
                 version_dic = self.url_to_dic(object["url"])
         java = version_dic["javaVersion"]["majorVersion"]
-        os.mkdir(os.path.join(SERVERS, name))
-        if ram == "":
-            ram = "4"
-        gyrosclientJson = {
-            "version" : version,
-            "modloader" : modloader,
-            "ram" : ram,
-            "java" : java
-        }
-        with open(os.path.join(SERVERS, name, "gyrosclient.json"), "w") as f:
-            json.dump(gyrosclientJson, f, indent=4)
-        with open(os.path.join(SERVERS, name, "eula.txt"), "w") as f:
-            f.write("eula=true")
-        self.updateServers()
-        self.createServerMenu.destroy()
+        if os.path.exists(os.path.join(SERVERS, name)):
+            self.createServerStatusText.configure(text="Server already exists!")
+        else:
+            os.mkdir(os.path.join(SERVERS, name))
+        if name == "":
+            self.createServerStatusText.configure(text="Not Valid: Name")
+        if not ram.isnumeric():
+            self.createServerStatusText.configure(text="Not Valid: RAM")
+        if not version in self.versions:
+            self.createServerStatusText.configure(text="Not Valid: Version")
+        if not modloader in self.modLoader:
+            self.createServerStatusText.configure(text="Not Valid: Modloader")
+        if os.path.exists(os.path.join(SERVERS, name)) and not name == "" and ram.isnumeric() and version in self.versions and modloader in self.modLoaders:
+            gyrosclientJson = {
+                        "version" : version,
+                        "modloader" : modloader,
+                        "ram" : ram,
+                        "java" : java
+                    }
+            with open(os.path.join(SERVERS, name, "gyrosclient.json"), "w") as f:
+                json.dump(gyrosclientJson, f, indent=4)
+            with open(os.path.join(SERVERS, name, "eula.txt"), "w") as f:
+                f.write("eula=true")
+            self.updateServers()
+            self.createServerMenu.destroy()
 
     def createProfile(self, name, modloader, version, ram):
         print(os.path.exists(os.path.join(PROFILES, name)))
@@ -301,14 +328,15 @@ class App(ctk.CTk):
             self.createProfileStatusText.configure(text="Profile already exists!")
         else:
             os.mkdir(os.path.join(PROFILES, name))
-        if not ram.isnumeric():
-            self.createProfileStatusText.configure(text="Not valid: RAM")
         if name == "":
             self.createProfileStatusText.configure(text="Not valid: Name")
+        if not ram.isnumeric():
+            self.createProfileStatusText.configure(text="Not valid: RAM")
         if not version in self.versions:
             self.createProfileStatusText.configure(text="Not valid: Version")
         if not modloader in self.modLoader:
             self.createProfileStatusText.configure(text="Not valid: Modloader")
+        
         if ram.isnumeric() and version in self.versions and not name == "" and not os.path.exists(os.path.join(PROFILES, name)) and modloader in self.modLoader:
             json_data = {
                     "name": name,
@@ -373,7 +401,6 @@ class App(ctk.CTk):
                 os.makedirs(assetPath, exist_ok=True)
                 self.url_to_file(f"{MINECRAFT_BASE_ASSET_URL}{hash[:2]}/{hash}", os.path.join(assetPath, hash))
     def fabricDownload(self, continueFunc):
-        print(threading.current_thread().name)
         url = f"https://meta.fabricmc.net/v2/versions/loader/{self.version}"
         fabricVersionJson = self.url_to_dic(url)[0]
         fabricloaderpath = self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), fabricVersionJson["loader"]["maven"])
@@ -404,7 +431,6 @@ class App(ctk.CTk):
     def stopClient(self):
         if self.clientProccess is not None:
             self.clientProccess.kill()
-            self.playButtton.configure(text=f"Start: {os.path.basename(self.profile)}", fg_color="#1F538D", hover_color="#1C487A", command=self.playButton_callback)
 
     def startClient(self):
         self.playButtton.configure(text=f"Stop: {os.path.basename(self.profile)}", fg_color="red", hover_color="#7B2320", command=self.stopClient)
@@ -429,6 +455,11 @@ class App(ctk.CTk):
         app.after(10000, lambda: self.updateStatusText(""))
         self.client = Client(username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath)
         self.clientProccess = self.client.initClient()
+        threading.Thread(target=self.waitForClient).start()
+
+    def waitForClient(self):
+        self.clientProccess.wait()
+        self.playButtton.configure(text=f"Start: {os.path.basename(self.profile)}", fg_color="#1F538D", hover_color="#1C487A", command=self.playButton_callback)
 
     def modLoaderDropdown_callback(self, selection):
         self.modLoader = selection
