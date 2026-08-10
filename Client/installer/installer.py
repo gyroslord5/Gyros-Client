@@ -42,6 +42,7 @@ if ctypes.windll.shell32.IsUserAnAdmin():
     with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "profiles.zip"), "r") as zip:
         zip.extractall(APPDATA_INSTALLATION)
     os.makedirs(JAVA, exist_ok=True)
+    os.makedirs(os.path.join(APPDATA_INSTALLATION, "Servers"), exist_ok=True)
     print("[LOG] Downloading JDK-17...")
     downloadFile(JAVAURLS[17], os.path.join(TEMP_INSTALLATION, "jdk-17.zip"))
     print("[LOG] Downloading JDK-21...")

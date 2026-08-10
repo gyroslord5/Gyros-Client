@@ -21,6 +21,9 @@ if ctypes.windll.shell32.IsUserAnAdmin():
             if os.path.exists(SHORTCUT):
                 print("[LOG] Removing "+SHORTCUT)
                 os.remove(SHORTCUT)
+            if os.path.exists(os.path.join(APPDATA_INSTALL, "Servers")):
+                print("[LOG] Removing "+os.path.join(APPDATA_INSTALL, "Servers"))
+                shutil.rmtree(os.path.join(APPDATA_INSTALL, "Servers"))
             print("Uninstall Done!")
             done = True
         elif choice.lower() == "n":
