@@ -235,7 +235,9 @@ class App(ctk.CTk):
         self.playButtton.configure(state="disabled")
         self.createProfileButton.configure(state="disabled")
         self.createProfileMenu = ctk.CTkFrame(self, width=400, height=300)
-        self.createProfileMenu.place(relx=0.5, rely=0.4, anchor="center")
+        self.createProfileMenu.place(relx=0.525, rely=0.4, anchor="center")
+        self.createProfileStatusText = ctk.CTkLabel(self.createProfileMenu, text="")
+        self.createProfileStatusText.place(relx=0.5, rely=0.8, anchor="center")
         self.nameInputField = ctk.CTkEntry(self.createProfileMenu, placeholder_text="Enter Profile Name: ", width=300, height=40)
         self.nameInputField.place(relx=0.5, y=50, anchor="center")
         self.deditatedwamInput = ctk.CTkEntry(self.createProfileMenu, width=250, height=40, placeholder_text="RAM (in GB): Default=2")
@@ -248,6 +250,13 @@ class App(ctk.CTk):
         self.modLoaderDropdown.place(relx=0.5, y=200, anchor="center")
         self.createButton = ctk.CTkButton(self.createProfileMenu, text="Create", command= lambda:self.createProfile(self.nameInputField.get(), self.modLoaderDropdown.get(), self.versionDropdown.get(), self.deditatedwamInput.get()))
         self.createButton.place(x=200, y=265, anchor="center")
+        self.closeButton = ctk.CTkButton(self.createProfileMenu, fg_color="red", hover_color="#7B2320", text="X", command=self.closeProfileMenu, width=30, height=30)
+        self.closeButton.place(relx=0.95, rely=0.075, anchor="center")
+
+    def closeProfileMenu(self):
+        self.createProfileMenu.destroy()
+        self.playButtton.configure(state="normal")
+        self.createProfileButton.configure(state="normal")
 
     def drawCreateServerMenu(self):
         self.createServerMenu = ctk.CTkFrame(self.currentMenuFrame, fg_color="gray10", width=500, height=350)
@@ -287,21 +296,31 @@ class App(ctk.CTk):
         self.createServerMenu.destroy()
 
     def createProfile(self, name, modloader, version, ram):
-        os.makedirs(os.path.join(PROFILES, name), exist_ok=True)
-        if ram == "":
-            ram = "2"
-        json_data = {
-            "name": name,
-            "modloader": modloader,
-            "version": version,
-            "ram": ram
-        }
-        with open(os.path.join(PROFILES, name, f"{name}-gyrosClient.json"), "w") as f:
-            json.dump(json_data, f, indent=4)
-        self.createProfileMenu.destroy()
-        self.updateProfiles()
-        self.playButtton.configure(state="normal")
-        self.createProfileButton.configure(state="normal")
+        print(os.path.exists(os.path.join(PROFILES, name)))
+        if os.path.exists(os.path.join(PROFILES, name)):
+            self.createProfileStatusText.configure(text="Profile already exists!")
+        else:
+            os.mkdir(os.path.join(PROFILES, name))
+        if not ram.isnumeric():
+            self.createProfileStatusText.configure(text="Not valid: RAM")
+        if name == "":
+            self.createProfileStatusText.configure(text="Not valid: Name")
+        if not version in self.versions:
+            self.createProfileStatusText.configure(text="Not valid: Version")
+        if not modloader in self.modLoader:
+            self.createProfileStatusText.configure(text="Not valid: Modloader")
+        if ram.isnumeric() and version in self.versions and not name == "" and not os.path.exists(os.path.join(PROFILES, name)) and modloader in self.modLoader:
+            json_data = {
+                    "name": name,
+                    "modloader": modloader,
+                    "version": version,
+                    "ram": ram
+                    }
+            with open(os.path.join(PROFILES, name, f"{name}-gyrosClient.json"), "w") as f:
+                json.dump(json_data, f, indent=4)
+            self.closeProfileMenu()
+            self.updateProfiles()
+            
 
     def updateProfiles(self):
         self.sideBar.update()
