@@ -83,7 +83,6 @@ class App(ctk.CTk):
         self.profiles = []
         self.profileFrames = []
         self.serverProccess = None
-        threading.Thread(target=self.handleInput).start()
         for version in self.versionManifest["versions"]:
                     if version["type"] == "release":
                         self.versions.append(version["id"])
@@ -99,6 +98,7 @@ class App(ctk.CTk):
             os.mkdir(os.path.join(RESOURCES, "libraries"))
         self.drawUniversalUI()
         self.drawMainScreen()
+        self.drawProfileDetails()
         
     def handleInput(self):
         inp = input()
@@ -106,7 +106,8 @@ class App(ctk.CTk):
             if self.serverProccess.poll() is None:
                 self.serverProccess.stdin.write(f"{inp}\n")
                 self.serverProccess.stdin.flush()
-        self.handleInput()
+            else:
+                self.handleInput()
 
     def url_to_dic(self, url):
         request = requests.get(url)
@@ -149,6 +150,12 @@ class App(ctk.CTk):
         self.serverMenuButton = ctk.CTkButton(self.menuBar, width=30, height=30, text="Servers", command=self.drawServersMenu)
         self.serverMenuButton.place(x=100, rely=0.5, anchor="center")
 
+    def drawProfileDetails(self):
+        self.profileDetailsMenu = ctk.CTkFrame(self.currentMenuFrame, width=500, height=300, fg_color="gray10")
+        self.profileDetailsMenu.place(relx=0.45, rely=0.43, anchor="center")
+        self.openinfolderprofileButton = ctk.CTkButton(self.profileDetailsMenu, text="Open in Folder", command=lambda: subprocess.run(["explorer", self.profile]))
+        self.openinfolderprofileButton.place(relx=0.84, rely=0.93, anchor="center")
+
     def drawMainScreen(self):
         for object in self.currentMenuFrame.winfo_children():
             object.destroy()
@@ -181,7 +188,7 @@ class App(ctk.CTk):
             profileNameText.place(x=70, y=30, anchor="center")
             self.selectServerButtons = []
             button = ctk.CTkButton(frame, text="Select Server", width=120, command=lambda server=server: self.setServer(server))
-            self.selectServerButton.append(button)
+            self.selectServerButtons.append(button)
             button.place(x=10, y=55)
 
 
@@ -223,6 +230,7 @@ class App(ctk.CTk):
         self.after(10000, lambda: self.startServerButtton.configure(state="normal"))
 
     def waitForServer(self):
+        threading.Thread(target=self.handleInput).start()
         self.serverProccess.wait()
         self.startServerButtton.configure(text=f"Start: {os.path.basename(self.selectedServer)}", fg_color="#1F538D", hover_color="#1C487A", command=self.startServerButtonClicked)
         
@@ -250,6 +258,7 @@ class App(ctk.CTk):
         self.activeProfile.configure(text=f"Selected Profile: {os.path.basename(self.profile)}")
         self.playButtton.update()
         self.playButtton.configure(text=f"Play: {os.path.basename(self.profile)}")
+        self.drawProfileDetails()
 
     def drawCreateProfileMenu(self):
         self.playButtton.configure(state="disabled")
