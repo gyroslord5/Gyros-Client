@@ -36,11 +36,12 @@ if ctypes.windll.shell32.IsUserAnAdmin():
         os.mkdir(APPDATA_INSTALLATION)
     with zipfile.ZipFile(FILESZIP, "r") as zip:
         zip.extractall(TEMP_INSTALLATION)
-    move_file(os.path.join(TEMP_INSTALLATION, "shortcut.lnk"), os.path.join(PROGRAMS, "Gyros Client.lnk"))
-    with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "app.zip"), "r") as zip:
+    move_file(os.path.join(TEMP_INSTALLATION, "files", "shortcut.lnk"), os.path.join(PROGRAMS, "Gyros Client.lnk"))
+    with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "files", "app.zip"), "r") as zip:
         zip.extractall(INSTALLATION)
-    with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "profiles.zip"), "r") as zip:
+    with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "files", "profiles.zip"), "r") as zip:
         zip.extractall(APPDATA_INSTALLATION)
+    move_file(os.path.join(TEMP_INSTALLATION, "files", "[no skin].png"), os.path.join(APPDATA_INSTALLATION, "[no skin].png"))
     os.makedirs(JAVA, exist_ok=True)
     os.makedirs(os.path.join(APPDATA_INSTALLATION, "Servers"), exist_ok=True)
     print("[LOG] Downloading JDK-17...")
