@@ -129,16 +129,6 @@ class App(ctk.CTk):
         self.drawUniversalUI()
         self.load_login()
         self.drawMainScreen()
-        self.drawProfileDetails()
-        
-    def handleInput(self):
-        inp = input()
-        if self.serverProccess is not None:
-            if self.serverProccess.poll() is None:
-                self.serverProccess.stdin.write(f"{inp}\n")
-                self.serverProccess.stdin.flush()
-            else:
-                self.handleInput()
 
     def url_to_dic(self, url):
         request = requests.get(url)
@@ -248,11 +238,21 @@ class App(ctk.CTk):
         if not self.login_data:
             threading.Thread(target=self.login).start()
 
-    def drawProfileDetails(self):
-        self.profileDetailsMenu = ctk.CTkFrame(self.currentMenuFrame, width=500, height=300, fg_color="gray10")
-        self.profileDetailsMenu.place(relx=0.45, rely=0.43, anchor="center")
-        self.openinfolderprofileButton = ctk.CTkButton(self.profileDetailsMenu, text="Open in Folder", command=lambda: subprocess.run(["explorer", self.profile]))
-        self.openinfolderprofileButton.place(relx=0.84, rely=0.93, anchor="center")
+    def writeTextBoxLine(self, box, text):
+        box.configure(state="normal")
+        box.insert("end", text+"\n")
+        box.see("end")
+        box.configure(state="disabled")
+
+    def drawServerOutput(self):
+        self.serverOutputMenu = ctk.CTkFrame(self.currentMenuFrame, width=500, height=300, fg_color="gray10")
+        self.serverOutputMenu.place(relx=0.45, rely=0.43, anchor="center")
+        self.outputBox = ctk.CTkTextbox(self.serverOutputMenu, state="disabled", width=490, height=250)
+        self.outputBox.place(x=6, y=8)
+        self.commandEntry = ctk.CTkEntry(self.serverOutputMenu, width=420, fg_color="gray15")
+        self.commandEntry.place(relx=0.44, rely=0.93, anchor="center")
+        self.sendCommandButton = ctk.CTkButton(self.serverOutputMenu, text="Send", width=50, command= lambda: self.sendCommand(self.commandEntry.get()))
+        self.sendCommandButton.place(relx=0.93, rely=0.93, anchor="center")
 
     def drawMainScreen(self):
         for object in self.currentMenuFrame.winfo_children():
@@ -299,10 +299,10 @@ class App(ctk.CTk):
             object.destroy()
         self.updateServers()
         if not self.serverRunning:
-            self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Start: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.startServerButtonClicked)
+            self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=500, height=125, text=f"Start: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.startServerButtonClicked)
             self.startServerButtton.place(relx=0.45, y=530, anchor="center")
         else:
-            self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=250, height=125, text=f"Stop: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.stopServer, fg_color="red", hover_color="#7B2320")
+            self.startServerButtton = ctk.CTkButton(self.currentMenuFrame, width=500, height=125, text=f"Stop: {os.path.basename(self.selectedServer)}", font=("Bold", 40), command=self.stopServer, fg_color="red", hover_color="#7B2320")
             self.startServerButtton.place(relx=0.45, y=530, anchor="center")
         self.createServerButton = ctk.CTkButton(self.toolbarFrame, text="+", width=30, command=self.drawCreateServerMenu)
         self.createServerButton.place(x=5, y=5)
@@ -320,16 +320,22 @@ class App(ctk.CTk):
         self.after(10000, lambda: self.updateStatusText(""))
         serverManager = server.Server(serverPath, version, modloader, ram, java)
         argv, wd = serverManager.start()
-        self.serverProccess = subprocess.Popen(argv, cwd=wd, stdin=subprocess.PIPE, text=True)
+        self.serverProccess = subprocess.Popen(argv, cwd=wd, stdin=subprocess.PIPE, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         threading.Thread(target=self.waitForServer).start()
         for button in self.selectServerButtons:
             button.configure(state="disabled")
-        self.startServerButtton.configure(text=f"Stop: {os.path.basename(self.selectedServer)}", fg_color="red", hover_color="#7B2320", command=self.stopServer, width=250, height=125, state="disabled")
+        self.startServerButtton.configure(text=f"Stop: {os.path.basename(self.selectedServer)}", fg_color="red", hover_color="#7B2320", command=self.stopServer, state="disabled")
         self.after(10000, lambda: self.startServerButtton.configure(state="normal"))
 
+    def sendCommand(self, command):
+        self.serverProccess.stdin.write(command+"\n")
+        self.serverProccess.stdin.flush()
+        self.commandEntry.set("")
+
     def waitForServer(self):
-        threading.Thread(target=self.handleInput).start()
-        self.serverProccess.wait()
+        self.drawServerOutput()
+        for line in self.serverProccess.stdout:
+            self.writeTextBoxLine(self.outputBox, line.strip())
         self.startServerButtton.configure(text=f"Start: {os.path.basename(self.selectedServer)}", fg_color="#1F538D", hover_color="#1C487A", command=self.startServerButtonClicked)
         
 
@@ -356,7 +362,6 @@ class App(ctk.CTk):
         self.activeProfile.configure(text=f"Selected Profile: {os.path.basename(self.profile)}")
         self.playButtton.update()
         self.playButtton.configure(text=f"Play: {os.path.basename(self.profile)}")
-        self.drawProfileDetails()
 
     def drawCreateProfileMenu(self):
         self.playButtton.configure(state="disabled")
@@ -576,6 +581,7 @@ class App(ctk.CTk):
 
     def modLoaderDropdown_callback(self, selection):
         self.modLoader = selection
+
 app = App(1200, 700)
 app.mainloop()
 if os.path.exists(os.path.join(GYROSCLIENT, "temp")):
