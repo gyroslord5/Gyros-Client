@@ -7,19 +7,27 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import server
 import minecraft_launcher_lib
+import webbrowser
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+import shutil
+from PIL import Image
 APPDATA = os.environ["appdata"]
 GYROSCLIENT = os.path.join(APPDATA, "GyrosClient")
 RESOURCES = os.path.join(GYROSCLIENT, "resources")
 PROFILES = os.path.join(GYROSCLIENT, "profiles")
 APP_INSTALL = os.path.join("c:\\", "Program Files", "Gyros Client", "app")
 SERVERS = os.path.join(GYROSCLIENT, "Servers")
-CLIENT_ID = "ef1facf9-2e00-4b25-be9a-452d48a68b4d"
+CLIENT_ID = "abab9706-d135-475a-8e1c-156a1fdaf8f5"
 REDIRECT_URL = "http://localhost:8000"
+CLIENT_SECRET = None
 BASE_FABRIC_URL = "https://maven.fabricmc.net/"
 MINECRAFT_BASE_ASSET_URL = "https://resources.download.minecraft.net/"
 VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+HEADSKIN_API_BASE = "https://mc-api.io/render/face/"
+auth_code = None
 class Client:
-    def __init__(self, username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
+    def __init__(self, username, version, modLoader, java, accessToken, uuid, profilePath, versionPath, libraries, assetsPath):
         self.username = username
         self.version = version
         self.modLoader = modLoader
@@ -28,6 +36,8 @@ class Client:
         self.versionPath = versionPath
         self.libraries = libraries
         self.assetsPath = assetsPath
+        self.accessToken = accessToken
+        self.uuid = uuid
 
     def initClient(self):
         print("Initalizing Client...")
@@ -44,8 +54,8 @@ class Client:
         for lib in self.fabricjson["launcherMeta"]["libraries"]["common"]:
             self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
         self.classpath = self.classpath[0:-1]
-        if self.modLoader == "fabric":startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.fabricjson["launcherMeta"]["mainClass"]["client"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", "0", "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"]] 
-        else: startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.vanillajson["mainClass"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", "0", "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"]]
+        if self.modLoader == "fabric":startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.fabricjson["launcherMeta"]["mainClass"]["client"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", self.accessToken, "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"], "--uuid", self.uuid] 
+        else: startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.vanillajson["mainClass"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", self.accessToken, "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"], "--uuid", self.uuid]
         proccess = self.start(startCommand)
         return proccess
 
@@ -57,6 +67,25 @@ class Client:
         return subprocess.Popen(command)
         del self
 
+
+class TokenHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+    def do_GET(self):
+        global auth_code
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        
+        query = urlparse(self.path).query
+        params = parse_qs(query)
+        
+        if "code" in params:
+            auth_code = params["code"][0]
+            self.wfile.write(b"<h1>Login Successful!</h1><p>You can Close this Tab now.</p>")
+        else:
+            self.wfile.write(b"<h1>Error</h1><p>Try again</p>")
 
 class App(ctk.CTk):
 
@@ -82,6 +111,8 @@ class App(ctk.CTk):
         self.profiles = []
         self.profileFrames = []
         self.serverProccess = None
+        self.login_data = None
+        os.makedirs(os.path.join(GYROSCLIENT, "temp"), exist_ok=True)
         for version in self.versionManifest["versions"]:
                     if version["type"] == "release":
                         self.versions.append(version["id"])
@@ -96,6 +127,7 @@ class App(ctk.CTk):
             os.mkdir(os.path.join(RESOURCES, "versions"))
             os.mkdir(os.path.join(RESOURCES, "libraries"))
         self.drawUniversalUI()
+        self.load_login()
         self.drawMainScreen()
         self.drawProfileDetails()
         
@@ -124,6 +156,60 @@ class App(ctk.CTk):
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
 
+    def login(self):
+        login_url = minecraft_launcher_lib.microsoft_account.get_login_url(CLIENT_ID, REDIRECT_URL)
+        webbrowser.open(login_url)
+        global auth_code
+        auth_code = None
+        server = HTTPServer(("localhost", 8000), TokenHandler)
+        server.handle_request()
+        server.server_close()
+        if auth_code:
+            try:
+                login_data = minecraft_launcher_lib.microsoft_account.complete_login(
+                    CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, auth_code
+                )
+        
+                self.login_data = login_data
+                self.accountNameText.configure(text=f"Account: {self.login_data["name"]}")
+                with open(os.path.join(GYROSCLIENT, "account.json"), "w") as f:
+                    json.dump(self.login_data, f, indent=4)
+                self.accountNameText.configure(text=f"Account: {self.login_data["name"]}")
+                self.accountLogbutton.configure(text="Logout", command=self.logout)
+                threading.Thread(target=self.updateSkinIco).start()
+                
+        
+            except minecraft_launcher_lib.microsoft_account.AzureAppNotPermitted:
+                print("App not Permitted")
+        
+            except Exception as e:
+                print(f"Login error: {e}")
+
+    def updateSkinIco(self):
+        request = requests.get(f"{HEADSKIN_API_BASE}{self.login_data["name"]}/java")
+        with open(os.path.join(GYROSCLIENT, "temp", f"{self.login_data["name"]}.png"), "wb") as f:
+            f.write(request.content)
+        newHeadImg = ctk.CTkImage(light_image=Image.open(os.path.join(GYROSCLIENT, "temp", f"{self.login_data["name"]}.png")), dark_image=Image.open(os.path.join(GYROSCLIENT, "temp", f"{self.login_data["name"]}.png")),size=(64, 64))
+        self.accountHead.configure(image=newHeadImg)
+
+    def logout(self):
+        self.login_data = None
+        os.remove(os.path.join(GYROSCLIENT, "account.json"))
+        self.accountNameText.configure(text=f"Account: None")
+        self.accountLogbutton.configure(text="Login", command=self.login)
+        newHeadImg = ctk.CTkImage(light_image=Image.open(os.path.join(GYROSCLIENT, "[no skin].png")), dark_image=Image.open(os.path.join(GYROSCLIENT, "[no skin].png")), size=(64, 64))
+        self.accountHead.configure(image=newHeadImg)
+
+    def load_login(self):
+        if not os.path.exists(os.path.join(GYROSCLIENT, "account.json")):
+            return
+        with open(os.path.join(GYROSCLIENT, "account.json"), "r") as f:
+            account = json.load(f)
+        self.login_data = minecraft_launcher_lib.microsoft_account.complete_refresh(CLIENT_ID, CLIENT_SECRET, REDIRECT_URL, account["refresh_token"])
+        self.accountNameText.configure(text=f"Account: {self.login_data["name"]}")
+        self.accountLogbutton.configure(text="Logout", command=self.logout)
+        threading.Thread(target=self.updateSkinIco).start()
+
     def url_to_file(self, url, absolutePathWithFileName):
         self.futures.append(self.pool.submit(self.downloadThread, url, absolutePathWithFileName))
 
@@ -148,6 +234,19 @@ class App(ctk.CTk):
         self.mainMenuButton.place(x=35, rely=0.5, anchor="center")
         self.serverMenuButton = ctk.CTkButton(self.menuBar, width=30, height=30, text="Servers", command=self.drawServersMenu)
         self.serverMenuButton.place(x=100, rely=0.5, anchor="center")
+        self.minecraftAccountFrame = ctk.CTkFrame(self, fg_color="gray10", width=300, height=70)
+        self.minecraftAccountFrame.place(relx=0.87, rely=0.08, anchor="center")
+        self.accountNameText = ctk.CTkLabel(self.minecraftAccountFrame, text=f"Account: None")
+        self.accountNameText.place(relx=0.5, rely=0.25, anchor="center")
+        self.accountLogbutton = ctk.CTkButton(self.minecraftAccountFrame, text="Login", command=self.logbutton_callback)
+        self.accountLogbutton.place(relx=0.5, rely=0.75, anchor="center")
+        self.accountHeadImage = ctk.CTkImage(light_image=Image.open(os.path.join(GYROSCLIENT, "[no skin].png")), dark_image=Image.open(os.path.join(GYROSCLIENT, "[no skin].png")), size=(64, 64))
+        self.accountHead = ctk.CTkLabel(self.minecraftAccountFrame, image=self.accountHeadImage, text="")
+        self.accountHead.place(relx=0.115, rely=0.49, anchor="center")
+
+    def logbutton_callback(self):
+        if not self.login_data:
+            threading.Thread(target=self.login).start()
 
     def drawProfileDetails(self):
         self.profileDetailsMenu = ctk.CTkFrame(self.currentMenuFrame, width=500, height=300, fg_color="gray10")
@@ -444,27 +543,30 @@ class App(ctk.CTk):
             self.clientProccess.kill()
 
     def startClient(self):
-        self.playButtton.configure(text=f"Stop: {os.path.basename(self.profile)}", fg_color="red", hover_color="#7B2320", command=self.stopClient)
-        if not os.path.exists(RESOURCES):
-            os.mkdir(RESOURCES)
-            os.mkdir(os.path.join(RESOURCES, "assets"))
-            os.mkdir(os.path.join(RESOURCES, "versions"))
-            os.mkdir(os.path.join(RESOURCES, "libraries"))
-        if not os.path.exists(os.path.join(PROFILES, "default")):
-            exit()
-        runclientfunc = lambda: self.runClient("Gyroslord5", self.version, self.modLoader, self.java, self.profile, os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets"))
-        if self.modLoader == "fabric":
-            continueFunction = lambda: self.fabricDownload(runclientfunc)
+        if not self.login_data :
+            self.statusText.configure(text="Could not start Client: No Profile Data!")
         else:
-            continueFunction = runclientfunc
-        self.vanillaDownload(continueFunction)
+            self.playButtton.configure(text=f"Stop: {os.path.basename(self.profile)}", fg_color="red", hover_color="#7B2320", command=self.stopClient)
+            if not os.path.exists(RESOURCES):
+                os.mkdir(RESOURCES)
+                os.mkdir(os.path.join(RESOURCES, "assets"))
+                os.mkdir(os.path.join(RESOURCES, "versions"))
+                os.mkdir(os.path.join(RESOURCES, "libraries"))
+            if not os.path.exists(os.path.join(PROFILES, "default")):
+                exit()
+            runclientfunc = lambda: self.runClient( self.version, self.modLoader, self.java, self.profile, os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets"))
+            if self.modLoader == "fabric":
+                continueFunction = lambda: self.fabricDownload(runclientfunc)
+            else:
+                continueFunction = runclientfunc
+            self.vanillaDownload(continueFunction)
 
-    def runClient(self, username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
+    def runClient(self, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
         for future in self.futures:
             future.result()
         self.after(0, lambda: self.updateStatusText("Starting Client..."))
         app.after(10000, lambda: self.updateStatusText(""))
-        self.client = Client(username, version, modLoader, java, profilePath, versionPath, libraries, assetsPath)
+        self.client = Client(self.login_data["name"], version, modLoader, java, self.login_data["access_token"], self.login_data["id"], profilePath, versionPath, libraries, assetsPath)
         self.clientProccess = self.client.initClient()
         threading.Thread(target=self.waitForClient).start()
 
@@ -476,3 +578,8 @@ class App(ctk.CTk):
         self.modLoader = selection
 app = App(1200, 700)
 app.mainloop()
+if os.path.exists(os.path.join(GYROSCLIENT, "temp")):
+    try:
+        shutil.rmtree(os.path.join(GYROSCLIENT, "temp"))
+    except Exception:
+        pass
