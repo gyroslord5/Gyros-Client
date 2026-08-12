@@ -58,7 +58,6 @@ class Client:
         del self
 
 
-
 class App(ctk.CTk):
 
     def __init__(self, screenX, screenY):
