@@ -64,7 +64,7 @@ class Client:
         return f"{os.path.join(basePath, group.replace(".", "\\"), artifact, artifactVersion, f"{artifact}-{artifactVersion}.jar")};"
 
     def start(self, command):
-        return subprocess.Popen(command)
+        return subprocess.Popen(command, creationflags=subprocess.CREATE_NO_WINDOW)
         del self
 
 
@@ -320,7 +320,7 @@ class App(ctk.CTk):
         self.after(10000, lambda: self.updateStatusText(""))
         serverManager = server.Server(serverPath, version, modloader, ram, java)
         argv, wd = serverManager.start()
-        self.serverProccess = subprocess.Popen(argv, cwd=wd, stdin=subprocess.PIPE, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self.serverProccess = subprocess.Popen(argv, cwd=wd, stdin=subprocess.PIPE, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NO_WINDOW)
         threading.Thread(target=self.waitForServer).start()
         for button in self.selectServerButtons:
             button.configure(state="disabled")
