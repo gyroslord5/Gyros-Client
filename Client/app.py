@@ -50,7 +50,7 @@ class Client:
         if self.modLoader == "fabric":
             with open(os.path.join(self.versionPath, f"{self.modLoader}-{self.version}", f"{self.modLoader}-{self.version}.json"), "r") as f:
                     self.fabricjson = json.load(f)
-        self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), self.fabricjson["loader"]["maven"])
+            self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), self.fabricjson["loader"]["maven"])
         for lib in self.fabricjson["launcherMeta"]["libraries"]["common"]:
             self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
         self.classpath = self.classpath[0:-1]
@@ -95,7 +95,7 @@ class App(ctk.CTk):
         self.geometry(f"{screenX}x{screenY}")
         self.screenX = screenX
         self.screenY = screenY
-        self.version = "26.1.2"
+        self.version = None
         self.modLoaders = ["fabric", "vanilla"]
         self.modLoader = self.modLoaders[0]
         self.versionManifest = self.url_to_dic(VERSION_MANIFEST_URL)
@@ -145,6 +145,11 @@ class App(ctk.CTk):
 
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
+
+    def updateVersion(self):
+        with open(os.path.join(self.profile, f"{os.path.basename(self.profile)}-gyrosclient.json"), "r") as f:
+            dic = json.load(f)
+        self.version = dic["version"]
 
     def login(self):
         login_url = minecraft_launcher_lib.microsoft_account.get_login_url(CLIENT_ID, REDIRECT_URL)
@@ -368,6 +373,8 @@ class App(ctk.CTk):
         self.createProfileButton.configure(state="disabled")
         self.createProfileMenu = ctk.CTkFrame(self, width=400, height=300)
         self.createProfileMenu.place(relx=0.525, rely=0.4, anchor="center")
+        self.createProfileStatusText = ctk.CTkLabel(self.createProfileMenu, text="")
+        self.createProfileStatusText.place(relx=0.5, rely=0.88, anchor="center")
         self.nameInputField = ctk.CTkEntry(self.createProfileMenu, placeholder_text="Enter Profile Name: ", width=300, height=40)
         self.nameInputField.place(relx=0.5, y=50, anchor="center")
         self.deditatedwamInput = ctk.CTkEntry(self.createProfileMenu, width=250, height=40, placeholder_text="RAM (in GB): Default=2")
@@ -397,7 +404,7 @@ class App(ctk.CTk):
         self.createServerText.place(relx=0.5, rely=0.075, anchor="center")
         self.nameInput = ctk.CTkEntry(self.createServerMenu, width=300, placeholder_text="Enter Server name: ", height=56)
         self.nameInput.place(relx=0.5, rely=0.2, anchor="center")
-        self.wamInput = ctk.CTkEntry(self.createServerMenu, width=300, placeholder_text="Ram (Default=4GB): ", height=56)
+        self.wamInput = ctk.CTkEntry(self.createServerMenu, width=300, height=56, placeholder_text="RAM (in GB): Default=4")
         self.wamInput.place(relx=0.5, rely=0.4, anchor="center")
         self.serverVersionDropdown = ctk.CTkComboBox(self.createServerMenu, width=250, height=45, values=self.versions)
         self.serverVersionDropdown.place(relx=0.5, rely=0.6, anchor="center")
@@ -438,11 +445,8 @@ class App(ctk.CTk):
             self.createServerMenu.destroy()
 
     def createProfile(self, name, modloader, version, ram):
-        print(os.path.exists(os.path.join(PROFILES, name)))
         if os.path.exists(os.path.join(PROFILES, name)):
             self.createProfileStatusText.configure(text="Profile already exists!")
-        else:
-            os.mkdir(os.path.join(PROFILES, name))
         if name == "":
             self.createProfileStatusText.configure(text="Not valid: Name")
         if not ram.isnumeric():
@@ -453,6 +457,7 @@ class App(ctk.CTk):
             self.createProfileStatusText.configure(text="Not valid: Modloader")
         
         if ram.isnumeric() and version in self.versions and not name == "" and not os.path.exists(os.path.join(PROFILES, name)) and modloader in self.modLoader:
+            os.mkdir(os.path.join(PROFILES, name))
             json_data = {
                     "name": name,
                     "modloader": modloader,
@@ -548,6 +553,7 @@ class App(ctk.CTk):
             self.clientProccess.kill()
 
     def startClient(self):
+        self.updateVersion()
         if not self.login_data :
             self.statusText.configure(text="Could not start Client: No Profile Data!")
         else:
