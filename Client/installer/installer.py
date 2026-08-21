@@ -53,15 +53,20 @@ if ctypes.windll.shell32.IsUserAnAdmin():
     print("[LOG] Extracting JDK-17...")
     with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "jdk-17.zip")) as zip:
         zip.extractall(JAVA)
-    os.rename(os.path.join(JAVA, "jdk-17.0.12"), os.path.join(JAVA, "jdk-17"))
     print("[LOG] Extracting JDK-21...")
     with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "jdk-21.zip")) as zip:
         zip.extractall(JAVA)
-    os.rename(os.path.join(JAVA, "jdk-21.0.12"), os.path.join(JAVA, "jdk-21"))
+    
     print("[LOG] Extracting JDK-25...")
     with zipfile.ZipFile(os.path.join(TEMP_INSTALLATION, "jdk-25.zip")) as zip:
         zip.extractall(JAVA)
-    os.rename(os.path.join(JAVA, "jdk-25.0.4"), os.path.join(JAVA, "jdk-25"))
+    for element in os.listdir(JAVA):
+        if element.startswith("jdk-17"):
+            os.rename(os.path.join(JAVA, element), os.path.join(JAVA, "jdk-17"))
+        elif element.startswith("jdk-21"):
+            os.rename(os.path.join(JAVA, element), os.path.join(JAVA, "jdk-21"))
+        elif element.startswith("jdk-25"):
+            os.rename(os.path.join(JAVA, element), os.path.join(JAVA, "jdk-25"))
     print("[LOG] Cleaning up temporary files...")
     shutil.rmtree(TEMP_INSTALLATION)
     if os.path.exists(TEMP_INSTALLATION):

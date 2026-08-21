@@ -27,7 +27,7 @@ VERSION_MANIFEST_URL = "https://piston-meta.mojang.com/mc/game/version_manifest_
 HEADSKIN_API_BASE = "https://mc-api.io/render/face/"
 auth_code = None
 class Client:
-    def __init__(self, username, version, modLoader, java, accessToken, uuid, profilePath, versionPath, libraries, assetsPath):
+    def __init__(self, username, version, modLoader, java, ram,  accessToken, uuid, profilePath, versionPath, libraries, assetsPath):
         self.username = username
         self.version = version
         self.modLoader = modLoader
@@ -55,7 +55,7 @@ class Client:
             self.classpath += self.maven_to_file_path(os.path.join(RESOURCES, "libraries"), lib["name"])
         self.classpath = self.classpath[0:-1]
         if self.modLoader == "fabric":startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.fabricjson["launcherMeta"]["mainClass"]["client"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", self.accessToken, "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"], "--uuid", self.uuid] 
-        else: startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], "-cp", self.classpath, self.vanillajson["mainClass"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", self.accessToken, "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"], "--uuid", self.uuid]
+        else: startCommand = [self.java[self.vanillajson["javaVersion"]["majorVersion"]], f"Xms{ram}G", f"Xmx{ram}G", "-cp", self.classpath, self.vanillajson["mainClass"], "--username", self.username, "--version", self.version, "--versionType", "release", "--accessToken", self.accessToken, "--gameDir", self.profilePath, "--assetsDir", self.assetsPath, "--assetIndex", self.vanillajson["assetIndex"]["id"], "--uuid", self.uuid]
         proccess = self.start(startCommand)
         return proccess
 
@@ -146,10 +146,6 @@ class App(ctk.CTk):
         with open(absolutePathWithFileName, "wb") as f:
             f.write(request.content)
 
-    def updateVersion(self):
-        with open(os.path.join(self.profile, f"{os.path.basename(self.profile)}-gyrosclient.json"), "r") as f:
-            dic = json.load(f)
-        self.version = dic["version"]
 
     def login(self):
         login_url = minecraft_launcher_lib.microsoft_account.get_login_url(CLIENT_ID, REDIRECT_URL)
@@ -553,7 +549,10 @@ class App(ctk.CTk):
             self.clientProccess.kill()
 
     def startClient(self):
-        self.updateVersion()
+        with open(os.path.join(self.profile, f"{os.path.basename(self.profile)}-gyrosclient.json"), "r") as f:
+            dic = json.load(f)
+        self.version = dic["version"]
+        self.ram = dic["ram"]
         if not self.login_data :
             self.statusText.configure(text="Could not start Client: No Profile Data!")
         else:
@@ -565,19 +564,19 @@ class App(ctk.CTk):
                 os.mkdir(os.path.join(RESOURCES, "libraries"))
             if not os.path.exists(os.path.join(PROFILES, "default")):
                 exit()
-            runclientfunc = lambda: self.runClient( self.version, self.modLoader, self.java, self.profile, os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets"))
+            runclientfunc = lambda: self.runClient(self.version, self.modLoader, self.java, self.ram, self.profile, os.path.join(RESOURCES, "versions"), os.path.join(RESOURCES, "libraries"), os.path.join(RESOURCES, "assets"))
             if self.modLoader == "fabric":
                 continueFunction = lambda: self.fabricDownload(runclientfunc)
             else:
                 continueFunction = runclientfunc
             self.vanillaDownload(continueFunction)
 
-    def runClient(self, version, modLoader, java, profilePath, versionPath, libraries, assetsPath):
+    def runClient(self, version, modLoader, java, ram, profilePath, versionPath, libraries, assetsPath):
         for future in self.futures:
             future.result()
         self.after(0, lambda: self.updateStatusText("Starting Client..."))
         app.after(10000, lambda: self.updateStatusText(""))
-        self.client = Client(self.login_data["name"], version, modLoader, java, self.login_data["access_token"], self.login_data["id"], profilePath, versionPath, libraries, assetsPath)
+        self.client = Client(self.login_data["name"], version, modLoader, java, ram, self.login_data["access_token"], self.login_data["id"], profilePath, versionPath, libraries, assetsPath)
         self.clientProccess = self.client.initClient()
         threading.Thread(target=self.waitForClient).start()
 
